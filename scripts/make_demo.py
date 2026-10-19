@@ -30,35 +30,46 @@ def colour(score):
 def card(rdir: Path, frame: int, vp: str, rnd: int, total: int, history: list[float]) -> Image.Image:
     rep = json.loads((rdir / "report.json").read_text())
     score = rep["score"]
-    W, H = 1280, 720
+    W, H = 1920, 1080
     img = Image.new("RGB", (W, H), (11, 13, 18))
     d = ImageDraw.Draw(img)
-    d.text((40, 28), "cloneproof loop", font=font(30), fill=(255, 255, 255))
-    d.text((40, 70), f"round {rnd} of {total}", font=font(20), fill=(140, 148, 165))
+    d.text((60, 40), "cloneproof", font=font(54), fill=(255, 255, 255))
+    d.text((60, 112), f"round {rnd} of {total}", font=font(30), fill=(140, 148, 165))
+    if rnd == 1:
+        line = "The AI says it is done. cloneproof says:"
+    elif rnd == total:
+        line = f"{rnd - 1} rounds of measure, fix, measure."
+    else:
+        line = "cloneproof lists the differences. The agent fixes them."
+    d.text((60, 175), line, font=font(34), fill=(232, 235, 242))
     base = rdir / vp
     for i, (name, label) in enumerate((("original", "original"), ("clone", "AI clone"), ("diff", "difference"))):
         p = base / f"{frame:02d}-{name}.png"
         if not p.exists():
             continue
         im = Image.open(p).convert("RGB")
-        im.thumbnail((390, 390))
-        x = 40 + i * 410
-        d.text((x, 112), label, font=font(18), fill=(140, 148, 165))
-        img.paste(im, (x, 140))
-    d.text((40, 570), f"{score:.1f}", font=font(110), fill=colour(score))
-    d.text((330, 610), "/ 100", font=font(30), fill=(140, 148, 165))
-    # score curve
-    x0, y0, w, h = 560, 560, 680, 120
+        im.thumbnail((590, 400))
+        x = 60 + i * 620
+        d.text((x, 245), label, font=font(28), fill=(140, 148, 165))
+        img.paste(im, (x, 290))
+    d.text((60, 740), f"{score:.1f}", font=font(230), fill=colour(score))
+    d.text((590, 880), "/ 100", font=font(48), fill=(140, 148, 165))
+    x0, y0, w, h = 800, 740, 1060, 260
     d.rectangle((x0, y0, x0 + w, y0 + h), outline=(37, 43, 59))
+    for g in (50, 75, 100):
+        gy = y0 + h - int(h * g / 100)
+        d.line((x0, gy, x0 + w, gy), fill=(30, 35, 48))
+        d.text((x0 + w + 8, gy - 12), str(g), font=font(20), fill=(100, 108, 125))
     pts = history[: rnd]
     for k in range(len(pts)):
-        px = x0 + int(w * (k / max(total - 1, 1)))
+        px = x0 + 20 + int((w - 40) * (k / max(total - 1, 1)))
         py = y0 + h - int(h * pts[k] / 100)
-        d.ellipse((px - 5, py - 5, px + 5, py + 5), fill=colour(pts[k]))
         if k:
-            qx = x0 + int(w * ((k - 1) / max(total - 1, 1)))
+            qx = x0 + 20 + int((w - 40) * ((k - 1) / max(total - 1, 1)))
             qy = y0 + h - int(h * pts[k - 1] / 100)
-            d.line((qx, qy, px, py), fill=(99, 102, 241), width=3)
+            d.line((qx, qy, px, py), fill=(99, 102, 241), width=5)
+        d.ellipse((px - 9, py - 9, px + 9, py + 9), fill=colour(pts[k]))
+    d.text((60, 1030), "github.com/pcjansen09-max/cloneproof", font=font(24), fill=(100, 108, 125))
     return img
 
 
@@ -75,7 +86,7 @@ def main():
         c.save(out / f"card-{i + 1:02d}.png")
     seq = cards + [cards[-1]] * 2
     seq[0].save(out / "demo.gif", save_all=True, append_images=seq[1:], duration=1600, loop=0, optimize=True)
-    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", "0.6", "-i", str(out / "card-%02d.png"),
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", "0.7", "-i", str(out / "card-%02d.png"),
                     "-vf", "format=yuv420p", "-movflags", "+faststart", str(out / "demo.mp4")], check=False)
     print(out, history)
 

@@ -49,7 +49,7 @@ def cmd_compare(a: argparse.Namespace) -> int:
     out = Path(a.out)
     res = compare(ref, clone, out, viewports=vps, wait_ms=a.wait, settle_ms=a.settle,
                   noise=not (a.quick or a.no_noise), max_frames=a.frames, say=_say, **_browser_kw(a))
-    prompt = build_prompt(res, target=a.target, clone_hint=hint)
+    prompt = build_prompt(res, target=a.target, clone_hint=hint, ref_arg=a.reference, clone_arg=a.clone)
     write_all(res, prompt)
     for s in servers:
         s.shutdown()
@@ -108,7 +108,7 @@ def cmd_loop(a: argparse.Namespace) -> int:
     clone, hint = _resolve(a.clone, servers)
     vps = ("desktop",) if a.quick else tuple(v.strip() for v in a.viewports.split(","))
     summary = run_loop(ref, clone, agent=a.agent, target=a.target, rounds=a.rounds, out=Path(a.out),
-                       cwd=Path(a.cwd), hint=hint,
+                       cwd=Path(a.cwd), hint=hint, ref_arg=a.reference, clone_arg=a.clone,
                        compare_kw=dict(viewports=vps, wait_ms=a.wait, settle_ms=a.settle,
                                        noise=not (a.quick or a.no_noise), max_frames=a.frames, **_browser_kw(a)))
     for s in servers:

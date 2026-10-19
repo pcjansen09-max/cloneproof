@@ -28,7 +28,12 @@ report   : .cloneproof/latest/report.html
 prompt   : .cloneproof/latest/prompt.md   (give it to your agent)
 ```
 
-<!-- DEMO: docs/demo.gif -->
+![cloneproof loop: an AI clone goes from 57 to 96.6 in nine rounds](docs/demo.gif)
+
+*A real run. An AI (Claude Sonnet) rebuilt a page from screenshots and said it was done: **57.3 / 100**.
+cloneproof measured it, handed the exact differences back, and the loop took it to **96.6** in nine rounds
+(one round got worse and was rolled back automatically). The page, the screenshots and the final clone are in
+[`examples/fika`](examples/fika); the video is [`docs/demo.mp4`](docs/demo.mp4).*
 
 ## Why this exists
 
@@ -46,7 +51,7 @@ is you, squinting at two browser tabs. cloneproof takes over the squinting:
 ## Install
 
 ```bash
-pip install cloneproof        # or: pipx install cloneproof
+pip install git+https://github.com/pcjansen09-max/cloneproof      # or: pipx install git+https://github.com/pcjansen09-max/cloneproof
 cloneproof doctor             # checks the browser; if missing: python -m playwright install chromium
 ```
 
@@ -74,7 +79,7 @@ The agent is any command that reads a prompt on stdin: `claude -p`, `codex exec 
 
 ```bash
 cloneproof init-agent        # writes a skill for Claude Code / Codex / Cursor (.claude/skills, .agents/skills) + AGENTS.md
-pip install "cloneproof[mcp]" && claude mcp add cloneproof -- cloneproof mcp    # or as an MCP tool
+pip install "cloneproof[mcp] @ git+https://github.com/pcjansen09-max/cloneproof" && claude mcp add cloneproof -- cloneproof mcp    # or as an MCP tool
 ```
 
 After that, "make this site match https://example.com" makes the agent measure instead of eyeball.
@@ -97,6 +102,12 @@ Every run writes `.cloneproof/latest/`:
 | `report.json` | everything, for scripts |
 | `scorecard.png` | 1200x630 image of the result, ready to post |
 | `<viewport>/NN-{original,clone,diff}.png` | the frames |
+
+## Tested on real sites
+
+Thirteen real sites, mirrored and measured against the live originals: median **93.7**, six above 96
+(Hacker News, example.com, three.js, Linear, delta-design.nl, WordPress.org). The weak ones are listed with the
+reason in [docs/benchmarks.md](docs/benchmarks.md), including the eight bugs this stress test found in cloneproof itself.
 
 ## How the score works
 

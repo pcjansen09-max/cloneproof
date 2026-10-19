@@ -28,7 +28,7 @@ def dedupe(issues: list[M.Issue]) -> list[M.Issue]:
 
 
 def build_prompt(result: Result, target: float = 97.0, limit: int = 25, clone_hint: str = "",
-                 round_no: int | None = None) -> str:
+                 round_no: int | None = None, ref_arg: str = "", clone_arg: str = "") -> str:
     d = result.to_dict()
     top = dedupe(result.issues())[:limit]
     lines = [
@@ -46,7 +46,7 @@ def build_prompt(result: Result, target: float = 97.0, limit: int = 25, clone_hi
         "2. Change the clone's SOURCE CODE (HTML/CSS/JS/components). Never patch a screenshot in, never "
         "hotlink the original's assets, never special-case the measurement.",
         "3. After a batch of fixes, re-measure with:",
-        f"       cloneproof compare {result.reference} {result.clone} --json --target {target:g}",
+        f"       cloneproof compare {ref_arg or result.reference} {clone_arg or result.clone} --json --target {target:g}",
         "   Exit code 0 means the target is reached. Stop when it is, or when two rounds in a row do not "
         "improve the score.",
         f"4. Look at the images when a line is unclear: {result.out_dir}/<viewport>/NN-original.png, "
