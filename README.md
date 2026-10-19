@@ -1,5 +1,7 @@
 # cloneproof
 
+[![tests](https://github.com/pcjansen09-max/cloneproof/actions/workflows/tests.yml/badge.svg)](https://github.com/pcjansen09-max/cloneproof/actions/workflows/tests.yml) ![python](https://img.shields.io/badge/python-3.10%2B-blue) ![license](https://img.shields.io/badge/license-MIT-green)
+
 **Don't ask your AI to clone a website. Make it prove it.**
 
 AI "website cloners" take a screenshot, build something that looks roughly right, and tell you it
