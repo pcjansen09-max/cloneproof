@@ -60,7 +60,9 @@ def local_path(url: str, origin: str, content_type: str = "") -> str:
         path += want or "/index.html"
     elif want and Path(path).suffix.lower() != want and want in (".css", ".js", ".json", ".svg"):
         path += want
-    path = path.lstrip("/")
+    parts = [seg for seg in path.split("/") if seg not in ("", ".", "..")]   # never leave the mirror folder
+    parts = [re.sub(r'[<>:"|?*\\\x00-\x1f]', "_", seg) for seg in parts]
+    path = "/".join(parts)
     if u.query:                      # fonts.googleapis.com/css2?family=A and ?family=B differ
         stem, dot, ext = path.rpartition(".")
         tag = _short(u.query)
@@ -108,7 +110,7 @@ class Mirror:
             self.urls[url] = p
             self.source_of.setdefault(p, url)
 
-    def fetch_full_media(self) -> list[str]:
+    def fetch_full_media_blocking(self) -> list[str]:
         done = []
         for url, p in list(self.urls.items()):
             if not p.lower().endswith(MEDIA_EXT):
@@ -196,8 +198,11 @@ class Mirror:
         return text
 
     def write(self) -> dict[str, Any]:
+        root = self.folder.resolve()
         for p, body in self.files.items():
             dst = self.folder / p
+            if not str(dst.resolve()).startswith(str(root)):
+                continue                                  # belt and braces: never write outside the mirror
             dst.parent.mkdir(parents=True, exist_ok=True)
             if Path(p).suffix.lower() in TEXT_EXT:
                 text = self.rewrite(body.decode("utf-8", errors="replace"), p)
@@ -301,7 +306,7 @@ async def capture_async(url: str, folder: Path, wait_ms: int = 6000, say=lambda 
             m.rebase(final_url)        # redirect to another host (apex -> www): that host is the site
     folder.mkdir(parents=True, exist_ok=True)
     say("fetching video/3D files in full")
-    m.fetch_full_media()
+    await asyncio.to_thread(m.fetch_full_media_blocking)
     info = m.write()
     if heal_rounds:
         info["healed"] = await heal(m, folder, heal_rounds, say)
@@ -313,7 +318,7 @@ async def capture_async(url: str, folder: Path, wait_ms: int = 6000, say=lambda 
     info["start"] = start
     info["source"] = url
     (folder / "_sources.json").write_text(json.dumps(
-        {"source": url, "files": {p: u for u, p in sorted(m.urls.items())}}, indent=2))
+        {"source": url, "files": {p: u for u, p in sorted(m.urls.items())}}, indent=2), encoding="utf-8")
     return info
 
 
@@ -366,11 +371,12 @@ async def heal(m: Mirror, folder: Path, rounds: int = 3, say=lambda s: None) -> 
             real = f"{origin.scheme}://{origin.netloc}{path}"
             if real in m.urls:
                 continue
-            try:
-                req = urllib.request.Request(real, headers={"User-Agent": "Mozilla/5.0 cloneproof/0.1"})
+            def download(url=real):
+                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 cloneproof/0.1"})
                 with urllib.request.urlopen(req, timeout=60) as r:
-                    body = r.read()
-                    ctype = (r.headers.get("content-type") or "").lower() or "application/octet-stream"
+                    return r.read(), (r.headers.get("content-type") or "").lower() or "application/octet-stream"
+            try:
+                body, ctype = await asyncio.to_thread(download)
             except Exception:
                 continue
             if "text/html" in ctype and not path.endswith((".html", "/")):

@@ -151,7 +151,10 @@ def frame_similarity(ref: Image.Image, clone: Image.Image, mask: np.ndarray | No
     ccodes = cq[:, 0] * 1024 + cq[:, 1] * 32 + cq[:, 2]
     cbusy = (ccodes != mode).reshape(cl.shape[0], cl.shape[1])
     ca[: cbusy.shape[0], : cbusy.shape[1]] = cbusy[:rh, :rw]
-    busy = (ref_busy | ca) & valid
+    outside = np.zeros((rh, rw), dtype=bool)          # what the clone does not have at all is always "busy"
+    outside[min(cl.shape[0], rh):, :] = True
+    outside[:, min(cl.shape[1], rw):] = True
+    busy = (ref_busy | ca | outside) & valid
     n_busy = int(busy.sum())
     content = 1.0 - int((bad & busy).sum()) / n_busy if n_busy else 1.0
     return raw, content, bad
@@ -386,7 +389,10 @@ def compare_elements(vp: str, ref: Probe, clone: Probe) -> tuple[dict[str, float
     n_ref = max(len(ref.elements), 1)
     area_w = lambda e: (e["w"] * e["h"]) / total_area  # noqa: E731
     matched_area = sum(area_w(r) for r, _ in pairs)
-    layout = (in_place / n_ref) * 0.6 + matched_area * 0.4
+    if not ref.elements and not clone.elements:
+        layout = 1.0
+    else:
+        layout = (in_place / n_ref) * 0.6 + matched_area * 0.4
     typography = 1.0 - (style_w_bad / style_w_all) if style_w_all else (1.0 if not ref.elements else 0.0)
     texty = [e for e in ref.elements if e["text"]]
     content = (text_ok / len(texty)) if texty else 1.0

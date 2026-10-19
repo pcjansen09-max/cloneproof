@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
 import shutil
 import subprocess
@@ -15,26 +16,38 @@ from .prompt import build_prompt
 from .report import write_all
 
 
-SKIP = shutil.ignore_patterns("node_modules", ".git", ".next", "dist", "build", ".cloneproof", "__pycache__", ".venv")
+IGNORED = {"node_modules", ".git", ".next", "dist", "build", ".cloneproof", "__pycache__", ".venv"}
 
 
-def snapshot(src: Path, dst: Path) -> None:
+def _walk(root: Path, exclude: Path | None):
+    """Every file under root, skipping ignored directory names anywhere and the `exclude` folder."""
+    ex = exclude.resolve() if exclude else None
+    for dirpath, dirnames, filenames in os.walk(root):
+        here = Path(dirpath)
+        dirnames[:] = [d for d in dirnames if d not in IGNORED and not (ex and (here / d).resolve() == ex)]
+        for f in filenames:
+            yield (here / f).relative_to(root)
+
+
+def snapshot(src: Path, dst: Path, exclude: Path | None = None) -> None:
     if dst.exists():
         shutil.rmtree(dst)
-    shutil.copytree(src, dst, ignore=SKIP)
+    dst.mkdir(parents=True)
+    for rel in _walk(src, exclude if exclude else (dst if dst.resolve().is_relative_to(src.resolve()) else None)):
+        (dst / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src / rel, dst / rel)
 
 
-def restore(snap: Path, dst: Path) -> None:
-    """Put the project back exactly as the snapshot was (files the agent added are removed)."""
-    for item in list(dst.iterdir()):
-        if item.name in {"node_modules", ".git", ".next", "dist", "build", ".cloneproof", ".venv", "__pycache__"}:
-            continue
-        shutil.rmtree(item) if item.is_dir() else item.unlink()
-    for item in snap.iterdir():
-        if item.is_dir():
-            shutil.copytree(item, dst / item.name)
-        else:
-            shutil.copy2(item, dst / item.name)
+def restore(snap: Path, dst: Path, exclude: Path | None = None) -> None:
+    """Put the tracked files back exactly as the snapshot was. Only files the agent changed or
+    added are touched; ignored folders (.git, node_modules, ...) are never deleted."""
+    keep = set(_walk(snap, None))
+    for rel in list(_walk(dst, exclude)):
+        if rel not in keep:
+            (dst / rel).unlink()
+    for rel in keep:
+        (dst / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(snap / rel, dst / rel)
 
 
 def run_loop(reference: str, clone: str, *, agent: str, target: float, rounds: int, out: Path,
@@ -66,7 +79,7 @@ def run_loop(reference: str, clone: str, *, agent: str, target: float, rounds: i
         improved = result.score > best_score + 0.2
         if result.score > best_score:
             best_score, best_round, best_prompt = result.score, n, prompt
-            snapshot(cwd, out / "best")
+            snapshot(cwd, out / "best", exclude=out)
         if result.score >= target:
             say(f"target {target:g} reached")
             break
@@ -79,7 +92,7 @@ def run_loop(reference: str, clone: str, *, agent: str, target: float, rounds: i
             break
         if result.score < best_score - 0.2:
             say(f"round {n}: score fell from {best_score:.1f} to {result.score:.1f}; restoring the best version (round {best_round})")
-            restore(out / "best", cwd)
+            restore(out / "best", cwd, exclude=out)
             prompt = (f"NOTE: your changes in the previous round LOWERED the score to {result.score:.1f}, so the project "
                       f"was restored to the best version so far (round {best_round}, {best_score:.1f}). The list below belongs "
                       "to that version. Make smaller, safer changes; do not repeat the last attempt.\n\n") + best_prompt
@@ -96,6 +109,6 @@ def run_loop(reference: str, clone: str, *, agent: str, target: float, rounds: i
     summary = {"history": history, "best": round(best_score, 1), "best_round": best_round, "target": target,
                "reached": best_score >= target}
     if best_round and (out / "best").exists() and result is not None and result.score < best_score:
-        restore(out / "best", cwd)
-    (out / "loop.json").write_text(json.dumps(summary, indent=2))
+        restore(out / "best", cwd, exclude=out)
+    (out / "loop.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     return summary

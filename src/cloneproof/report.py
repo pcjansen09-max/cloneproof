@@ -189,12 +189,13 @@ def write_html(result: Result, prompt_text: str, path: Path) -> None:
             .replace("__COL__", col).replace("__VPS__", vps).replace("__CATS__", cat_html)
             .replace("__ISSUES__", issues).replace("__TABS__", tabs).replace("__FRAMES__", "".join(frames))
             .replace("__PROMPT__", html.escape(prompt_text)))
-    path.write_text(page)
+    path.write_text(page, encoding="utf-8")
 
 
 def write_all(result: Result, prompt_text: str) -> None:
     out = result.out_dir
-    (out / "report.json").write_text(json.dumps(result.to_dict(max_issues=400), indent=2, ensure_ascii=False))
-    (out / "report.md").write_text(markdown(result))
+    (out / "report.json").write_text(json.dumps(result.to_dict(max_issues=400), indent=2, ensure_ascii=False), encoding="utf-8")
+    (out / "report.md").write_text(markdown(result), encoding="utf-8")
+    (out / "prompt.md").write_text(prompt_text, encoding="utf-8")
     write_html(result, prompt_text, out / "report.html")
     scorecard(result, out / "scorecard.png")

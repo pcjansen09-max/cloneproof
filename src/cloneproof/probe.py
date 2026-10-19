@@ -150,7 +150,7 @@ class Probe:
 def plan_positions(page_height: int, view_height: int, max_frames: int = MAX_FRAMES) -> list[int]:
     """Absolute scroll offsets that tile the page, evenly thinned if the page is very tall."""
     max_scroll = max(page_height - view_height, 0)
-    if max_scroll == 0:
+    if max_scroll == 0 or max_frames < 2:
         return [0]
     step = max(int(view_height * 0.9), 1)
     pos = list(range(0, max_scroll, step)) + [max_scroll]

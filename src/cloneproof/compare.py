@@ -199,4 +199,4 @@ def compare(reference: str, clone: str, out_dir: str | Path, **kw) -> Result:
 
 
 def save_json(result: Result, path: Path) -> None:
-    path.write_text(json.dumps(result.to_dict(max_issues=400), indent=2, ensure_ascii=False))
+    path.write_text(json.dumps(result.to_dict(max_issues=400), indent=2, ensure_ascii=False), encoding="utf-8")

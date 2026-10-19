@@ -69,7 +69,7 @@ def cmd_compare(a: argparse.Namespace) -> int:
             print(f"  [{i.viewport}] {i.summary}")
         print(f"\nreport   : {out}/report.html\nprompt   : {out}/prompt.md   (give it to your agent)"
               f"\nscorecard: {out}/scorecard.png")
-    (out / "prompt.md").write_text(prompt)
+    (out / "prompt.md").write_text(prompt, encoding="utf-8")
     if a.open:
         import webbrowser
         webbrowser.open((out / "report.html").resolve().as_uri())

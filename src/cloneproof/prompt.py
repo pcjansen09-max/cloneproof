@@ -82,5 +82,5 @@ def build_prompt(result: Result, target: float = 97.0, limit: int = 25, clone_hi
 
 def write_prompt(result: Result, path: Path, **kw) -> str:
     text = build_prompt(result, **kw)
-    path.write_text(text)
+    path.write_text(text, encoding="utf-8")
     return text

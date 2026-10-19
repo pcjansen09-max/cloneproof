@@ -6,6 +6,7 @@ import mimetypes
 import os
 import re
 import socketserver
+from urllib.parse import unquote
 import threading
 from http.server import SimpleHTTPRequestHandler
 from pathlib import Path
@@ -25,11 +26,13 @@ class _Handler(SimpleHTTPRequestHandler):
         pass
 
     def translate_path(self, path: str) -> str:
-        path = path.split("?", 1)[0].split("#", 1)[0]
+        path = unquote(path.split("?", 1)[0].split("#", 1)[0])
         rel = os.path.normpath(path.lstrip("/"))
         full = (self.root / rel).resolve()
-        if not str(full).startswith(str(self.root.resolve())):
-            return str(self.root / "index.html")
+        try:
+            full.relative_to(self.root.resolve())
+        except ValueError:
+            return str(self.root / "__outside__")         # sibling folders with the same prefix are NOT inside
         if full.is_dir():
             idx = full / "index.html"
             return str(idx if idx.exists() else full)
