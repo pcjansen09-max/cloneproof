@@ -50,9 +50,22 @@ def restore(snap: Path, dst: Path, exclude: Path | None = None) -> None:
         shutil.copy2(snap / rel, dst / rel)
 
 
+def find_copies(original: Path, clone: Path, min_bytes: int = 300) -> list[str]:
+    """Files of the clone that are byte-for-byte files of the original. An agent that reads the
+    original's source and pastes it in scores 100 without having cloned anything."""
+    import hashlib
+
+    def digest(p: Path) -> str:
+        return hashlib.sha256(p.read_bytes()).hexdigest()
+    seen = {digest(original / rel) for rel in _walk(original, None) if (original / rel).stat().st_size >= min_bytes}
+    return sorted(str(rel) for rel in _walk(clone, None)
+                  if (clone / rel).stat().st_size >= min_bytes and digest(clone / rel) in seen)
+
+
 def run_loop(reference: str, clone: str, *, agent: str, target: float, rounds: int, out: Path,
              cwd: Path, compare_kw: dict, say=lambda s: print(s, file=sys.stderr),
-             hint: str = "", agent_timeout: int = 1800, ref_arg: str = "", clone_arg: str = "") -> dict:
+             hint: str = "", agent_timeout: int = 1800, ref_arg: str = "", clone_arg: str = "",
+             original_dir: Path | None = None) -> dict:
     """Each round: compare -> write prompt -> run `agent` with the prompt on stdin.
 
     Stops when the target is reached, when a round fails to improve twice in a row, or after
@@ -76,6 +89,25 @@ def run_loop(reference: str, clone: str, *, agent: str, target: float, rounds: i
             pass
         history.append(round(result.score, 1))
         say(f"round {n}: score {result.score:.1f} ({', '.join(f'{k} {v.score:.0f}' for k, v in result.viewports.items())})")
+        copied = find_copies(original_dir, cwd) if original_dir and cwd.exists() else []
+        if copied and best_round:
+            say(f"round {n}: the clone contains files copied from the original ({', '.join(copied[:3])}); restoring the best version")
+            restore(out / "best", cwd, exclude=out)
+            history[-1] = 0.0
+            prompt = ("NOTE: the previous round copied files from the original's source folder, which is not allowed and "
+                      "scores nothing. The project was restored. Use ONLY the report, the images and the list below. "
+                      "Never read or copy the original's files.\n\n") + best_prompt
+            if n > rounds:
+                break
+            say(f"round {n}: handing the differences to the agent again")
+            t0 = time.time()
+            try:
+                subprocess.run(shlex.split(agent), input=prompt, text=True, cwd=str(cwd), timeout=agent_timeout)
+            except Exception:
+                pass
+            continue
+        if copied and not best_round:
+            say(f"round {n}: warning, the clone already contains files identical to the original: {', '.join(copied[:3])}")
         improved = result.score > best_score + 0.2
         if result.score > best_score:
             best_score, best_round, best_prompt = result.score, n, prompt

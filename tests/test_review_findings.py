@@ -114,3 +114,16 @@ def test_write_all_writes_prompt_md_and_utf8(tmp_path):
     write_all(res, "prompt 你好")
     assert (tmp_path / "prompt.md").read_text(encoding="utf-8") == "prompt 你好"
     assert "你好" in (tmp_path / "report.md").read_text(encoding="utf-8")
+
+
+def test_copied_files_are_detected(tmp_path):
+    from cloneproof.loop import find_copies
+    orig, clone = tmp_path / "o", tmp_path / "c"
+    orig.mkdir(); clone.mkdir()
+    big = "<html>" + "x" * 500 + "</html>"
+    (orig / "index.html").write_text(big)
+    (orig / "style.css").write_text("a{}" * 200)
+    (clone / "index.html").write_text(big)                 # pasted from the original
+    (clone / "style.css").write_text("b{}" * 200)          # written by the agent
+    (clone / "tiny.txt").write_text("hi")
+    assert find_copies(orig, clone) == ["index.html"]

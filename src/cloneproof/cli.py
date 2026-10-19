@@ -105,11 +105,12 @@ def cmd_serve(a: argparse.Namespace) -> int:
 def cmd_loop(a: argparse.Namespace) -> int:
     from .loop import run_loop
     servers: list = []
-    ref, _ = _resolve(a.reference, servers)
+    ref, ref_dir = _resolve(a.reference, servers)
     clone, hint = _resolve(a.clone, servers)
     vps = ("desktop",) if a.quick else tuple(v.strip() for v in a.viewports.split(","))
     summary = run_loop(ref, clone, agent=a.agent, target=a.target, rounds=a.rounds, out=Path(a.out),
                        cwd=Path(a.cwd), hint=hint, ref_arg=a.reference, clone_arg=a.clone,
+                       original_dir=Path(ref_dir) if ref_dir else None,
                        compare_kw=dict(viewports=vps, wait_ms=a.wait, settle_ms=a.settle,
                                        noise=not (a.quick or a.no_noise), max_frames=a.frames, **_browser_kw(a)))
     for s in servers:

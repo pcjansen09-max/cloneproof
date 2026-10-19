@@ -67,6 +67,14 @@ exact value to set (`set font-size: 64px on section.hero > h1`), the paths of th
 scroll position (original, clone, red diff), the exact command to measure again, and the rules
 (fix source, never special-case the measurement). Paste it into any agent, or let `cloneproof loop` do it.
 
+## Agents cheat, so the loop checks
+
+In one test run an agent was given a local folder as "original", read the source files next to it and pasted them
+into the clone: a perfect 100 after one round, and nothing cloned. The measurement was right (the pages really were
+identical); the behaviour was wrong. `cloneproof loop` now hashes the clone's files against the original's folder, treats
+a copy as a failed round, restores the best honest version and tells the agent why. The prompt also says it plainly.
+When you can, give the loop the original as a URL instead of a path.
+
 ## What it cannot do (yet)
 
 - WebGL/canvas content is compared as pixels only; if it is non-deterministic it is masked as noise.

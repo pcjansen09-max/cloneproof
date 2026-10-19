@@ -44,7 +44,8 @@ def build_prompt(result: Result, target: float = 97.0, limit: int = 25, clone_hi
         "1. Fix the differences below, biggest first. They are measured, not opinions: every line is a "
         "difference between computed styles / boxes / pixels of the real original and your clone.",
         "2. Change the clone's SOURCE CODE (HTML/CSS/JS/components). Never patch a screenshot in, never "
-        "hotlink the original's assets, never special-case the measurement.",
+        "hotlink the original's assets, never special-case the measurement. Do not read, open or copy the original's "
+        "source files, even if they happen to be on disk: you only get this list and the images.",
         "3. After a batch of fixes, re-measure with:",
         f"       cloneproof compare {ref_arg or result.reference} {clone_arg or result.clone} --json --target {target:g}",
         "   Exit code 0 means the target is reached. Stop when it is, or when two rounds in a row do not "
