@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.egg-info/
+dist/
+.cloneproof/
+out/
+.pytest_cache/
+corpus/
