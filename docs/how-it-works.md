@@ -24,7 +24,7 @@ never counted against the clone. A perfect copy of a restless page still scores 
 ## 3. Pixels, shift-tolerant
 
 Per scroll frame the clone is compared to the original with a per-channel tolerance. Before comparing,
-each 48px band of the clone is slid up or down (up to 48px) to where it best matches. One heading that
+each 48px band of the clone is slid up or down (up to 240px, preferring the shift of the band above) to where it best matches. One heading that
 is 10px taller would otherwise make everything below it "wrong"; the shift itself is reported as a
 layout issue. The pixel score only counts pixels where either image shows something other than the frame's
 dominant background colour, so a flat white page cannot score 99% for free.

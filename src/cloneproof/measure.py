@@ -70,7 +70,7 @@ def noise_mask(a: Image.Image, b: Image.Image) -> np.ndarray:
 
 
 BAND = 48
-MAX_SHIFT = 48
+MAX_SHIFT = 240
 
 
 def align_bands(ref: Image.Image, clone: Image.Image) -> Image.Image:
@@ -88,6 +88,7 @@ def align_bands(ref: Image.Image, clone: Image.Image) -> Image.Image:
     cfull = np.asarray(cw)
     ofull = np.asarray(out).copy()
     w = min(ref.width, clone.width)
+    prev_dy = 0
     for y0 in range(0, h, BAND):
         y1 = min(y0 + BAND, h)
         band = ra[y0:y1]
@@ -97,16 +98,19 @@ def align_bands(ref: Image.Image, clone: Image.Image) -> Image.Image:
                 a, b = y0 + dy, y1 + dy
                 if a < 0 or b > ca.shape[0]:
                     return 1e9
-                return float(np.abs(band[:, : ca.shape[1]] - ca[a:b, : band.shape[1]]).mean()) + 0.02 * abs(dy)
-            best = cost(0)
-            for dy in range(-MAX_SHIFT, MAX_SHIFT + 1, 4):
+                # a small pull towards the previous band's shift keeps neighbouring bands consistent
+                return float(np.abs(band[:, : ca.shape[1]] - ca[a:b, : band.shape[1]]).mean()) + 0.02 * abs(dy) + 0.01 * abs(dy - prev_dy)
+            best = cost(prev_dy)
+            best_dy = prev_dy
+            for dy in sorted(set([0] + list(range(-MAX_SHIFT, MAX_SHIFT + 1, 8)))):
                 c = cost(dy)
                 if c < best:
                     best, best_dy = c, dy
-            for dy in range(best_dy - 3, best_dy + 4):
+            for dy in range(best_dy - 7, best_dy + 8):
                 c = cost(dy)
                 if c < best:
                     best, best_dy = c, dy
+            prev_dy = best_dy
         a, b = y0 + best_dy, y1 + best_dy
         if a >= 0 and b <= cfull.shape[0]:
             ofull[y0:y1, :w] = cfull[a:b, :w]
@@ -265,6 +269,28 @@ def match_elements(ref: list[dict], clone: list[dict]
             pairs.append((e, clone[best_j]))
             used_r.add(i)
             used_c.add(best_j)
+    # fourth chance: same tag, boxes that overlap a lot (an illustration that is a bit bigger is
+    # a size problem, not one missing and one extra element)
+    def iou(a: dict, b: dict) -> float:
+        x0, y0 = max(a["x"], b["x"]), max(a["y"], b["y"])
+        x1, y1 = min(a["x"] + a["w"], b["x"] + b["w"]), min(a["y"] + a["h"], b["y"] + b["h"])
+        inter = max(0.0, x1 - x0) * max(0.0, y1 - y0)
+        union = a["w"] * a["h"] + b["w"] * b["h"] - inter
+        return inter / union if union else 0.0
+    for i, e in enumerate(ref):
+        if i in used_r or e["text"]:
+            continue
+        best, best_j = 0.0, -1
+        for j, c in enumerate(clone):
+            if j in used_c or c["tag"] != e["tag"] or c["text"]:
+                continue
+            v = iou(e, c)
+            if v > best:
+                best, best_j = v, j
+        if best >= 0.3 and best_j >= 0:
+            pairs.append((e, clone[best_j]))
+            used_r.add(i)
+            used_c.add(best_j)
     missing = [e for i, e in enumerate(ref) if i not in used_r]
     extra = [e for j, e in enumerate(clone) if j not in used_c]
     return pairs, missing, extra
@@ -343,6 +369,12 @@ def compare_elements(vp: str, ref: Probe, clone: Probe) -> tuple[dict[str, float
                             f'<{e["tag"]}> "{label}" is in the clone but not in the original',
                             e["path"], {"x": e["x"], "y": e["y"], "w": e["w"], "h": e["h"]}))
 
+    children_of: dict[int, list[tuple[dict, dict]]] = {}
+    for r, c in pairs:                       # which matched pairs sit inside which matched box
+        for r2, c2 in pairs:
+            if r2 is not r and r["w"] * r["h"] > r2["w"] * r2["h"] and r["x"] - 1 <= r2["x"] and r["y"] - 1 <= r2["y"] \
+                    and r2["x"] + r2["w"] <= r["x"] + r["w"] + 1 and r2["y"] + r2["h"] <= r["y"] + r["h"] + 1:
+                children_of.setdefault(id(r), []).append((r2, c2))
     in_place = 0.0
     text_ok = 0
     style_w_bad = style_w_all = 0.0
@@ -366,9 +398,10 @@ def compare_elements(vp: str, ref: Probe, clone: Probe) -> tuple[dict[str, float
                                 r["path"], {"dx": round(dx, 1), "dy": round(dy, 1),
                                             "ref_x": r["x"], "ref_y": r["y"]}))
         if resized:
+            why = _why_resized(r, c, children_of.get(id(r), []))
             issues.append(Issue("size", min(1.0, 0.15 + w * min(1.0, max(abs(dw), abs(dh)) / 80)), vp,
-                                f'`{r["path"]}` is {c["w"]:.0f}x{c["h"]:.0f}px, original is {r["w"]:.0f}x{r["h"]:.0f}px',
-                                r["path"], {"ref_w": r["w"], "ref_h": r["h"], "w": c["w"], "h": c["h"]}))
+                                f'`{r["path"]}` is {c["w"]:.0f}x{c["h"]:.0f}px, original is {r["w"]:.0f}x{r["h"]:.0f}px' + why,
+                                r["path"], {"ref_w": r["w"], "ref_h": r["h"], "w": c["w"], "h": c["h"], "why": why.strip()}))
         sd = _style_diffs(r, c)
         style_w_all += max(w, 0.05)
         if sd:
@@ -397,6 +430,30 @@ def compare_elements(vp: str, ref: Probe, clone: Probe) -> tuple[dict[str, float
     texty = [e for e in ref.elements if e["text"]]
     content = (text_ok / len(texty)) if texty else 1.0
     return {"layout": min(layout, 1.0), "style": max(typography, 0.0), "content": min(content, 1.0)}, issues
+
+
+def _lines(e: dict) -> float | None:
+    lh = _num(e["s"].get("lineHeight", ""))
+    if lh is None:
+        fs = _num(e["s"].get("fontSize", ""))
+        lh = fs * 1.2 if fs else None
+    return round(e["h"] / lh) if lh and e["text"] else None
+
+
+def _why_resized(r: dict, c: dict, kids: list[tuple[dict, dict]]) -> str:
+    """One short hint about the likely cause of a size difference."""
+    lr, lc = _lines(r), _lines(c)
+    if lr and lc and lr != lc:
+        return f" (the text wraps to {lc} lines, the original to {lr}; check width, font-size and letter-spacing)"
+    if kids:
+        worst = max(kids, key=lambda k: abs(k[1]["h"] - k[0]["h"]) + abs(k[1]["w"] - k[0]["w"]))
+        dh = worst[1]["h"] - worst[0]["h"]
+        dw = worst[1]["w"] - worst[0]["w"]
+        if abs(dh) > SIZE_TOL or abs(dw) > SIZE_TOL:
+            what = f"{dh:+.0f}px taller" if abs(dh) >= abs(dw) else f"{dw:+.0f}px wider"
+            return f" (mostly because `{worst[0]['path']}` inside it is {what})"
+    ps = r["s"]
+    return ""
 
 
 def fmt_delta(dx: float, dy: float) -> str:

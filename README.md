@@ -64,7 +64,7 @@ cloneproof doctor             # checks the browser; if missing: python -m playwr
 cloneproof compare https://original.example http://localhost:3000
 cloneproof compare https://original.example ./dist --open       # opens the HTML report
 
-# 2. fast mode while iterating: desktop only, no noise calibration
+# 2. fast mode while iterating: desktop only, no noise calibration (all three viewports run in parallel by default; --serial for weak machines)
 cloneproof compare https://original.example http://localhost:3000 --quick
 
 # 3. machine readable (exit code 0 = target reached)

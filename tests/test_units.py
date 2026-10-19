@@ -63,3 +63,43 @@ def test_noise_mask_hides_changing_regions():
     mask = M.noise_mask(_page(), b)
     _, content, _ = M.frame_similarity(a, b, mask)
     assert content > 0.99
+
+
+def test_large_shift_is_followed_by_the_alignment():
+    # a section inserted above makes everything 150px lower; the pixels still look the same
+    ref = _page()
+    shifted = Image.new("RGB", (400, 750), (250, 250, 250))
+    shifted.paste(_page(), (0, 150))
+    cropped = shifted.crop((0, 0, 400, 600))
+    # the clone shows the same content 150px lower, so compare the reference against a frame
+    # that starts 150px earlier on the clone side
+    raw, content, _ = M.frame_similarity(ref, shifted.crop((0, 0, 400, 600)), None)
+    assert content > 0.6
+
+
+def _el(tag, x, y, w, h, text="", fs="16px", lh="20px", **kw):
+    return {"tag": tag, "path": f"{tag}.x", "text": text, "x": x, "y": y, "w": w, "h": h, "media": tag in ("img", "svg"),
+            "fixed": False, "s": {"fontSize": fs, "lineHeight": lh, "fontFamily": "A", "fontWeight": "400", "letterSpacing": "normal",
+                                  "color": "rgb(0,0,0)", "background": "rgba(0,0,0,0)", "borderRadius": "0px", "opacity": "1",
+                                  "textAlign": "left", "textTransform": "none", "backgroundImage": "", "boxShadow": "",
+                                  "borderTopWidth": "0px", "borderTopColor": "rgb(0,0,0)"}, **kw}
+
+
+def test_slightly_bigger_illustration_is_a_size_issue_not_missing_plus_extra():
+    from cloneproof.probe import Probe
+    ref = Probe(url="a", viewport="desktop", width=1440, height=900, elements=[_el("svg", 100, 100, 300, 300)])
+    clone = Probe(url="b", viewport="desktop", width=1440, height=900, elements=[_el("svg", 100, 100, 340, 330)])
+    _, issues = M.compare_elements("desktop", ref, clone)
+    kinds = [i.kind for i in issues]
+    assert "missing" not in kinds and "extra" not in kinds and "size" in kinds
+
+
+def test_size_issue_explains_text_wrapping():
+    from cloneproof.probe import Probe
+    ref = Probe(url="a", viewport="desktop", width=1440, height=900,
+                elements=[_el("p", 0, 0, 600, 40, text="hello world again and again")])
+    clone = Probe(url="b", viewport="desktop", width=1440, height=900,
+                  elements=[_el("p", 0, 0, 400, 80, text="hello world again and again")])
+    _, issues = M.compare_elements("desktop", ref, clone)
+    size = next(i for i in issues if i.kind == "size")
+    assert "wraps to 4 lines" in size.summary and "original to 2" in size.summary
