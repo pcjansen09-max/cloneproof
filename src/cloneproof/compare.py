@@ -166,7 +166,7 @@ async def _one_viewport(browser, vp: str, ref_url: str, clone_url: str, out: Pat
 async def compare_async(reference: str, clone: str, out_dir: Path, *, viewports=("desktop", "tablet", "mobile"),
                         wait_ms: int = 2500, settle_ms: int = 900, noise: bool = True, max_frames: int = 24,
                         say: Callable[[str], None] = lambda s: None, headers: dict | None = None,
-                        headed: bool = False, channel: str | None = None) -> Result:
+                        headed: bool = False, channel: str | None = None, parallel: bool = True) -> Result:
     from playwright.async_api import async_playwright
 
     t0 = time.time()
@@ -178,11 +178,17 @@ async def compare_async(reference: str, clone: str, out_dir: Path, *, viewports=
         if channel:
             opts["channel"] = channel
         browser = await pw.chromium.launch(**opts)
+        async def run(vp: str) -> ViewportResult:
+            return await _one_viewport(
+                browser, vp, reference, clone, out_dir, wait_ms=wait_ms, settle_ms=settle_ms,
+                noise=noise, max_frames=max_frames, say=say, headers=headers)
         try:
-            for vp in viewports:
-                results[vp] = await _one_viewport(
-                    browser, vp, reference, clone, out_dir, wait_ms=wait_ms, settle_ms=settle_ms,
-                    noise=noise, max_frames=max_frames, say=say, headers=headers)
+            if parallel and len(viewports) > 1:
+                done = await asyncio.gather(*(run(vp) for vp in viewports))
+                results = dict(zip(viewports, done))
+            else:
+                for vp in viewports:
+                    results[vp] = await run(vp)
         finally:
             await browser.close()
     return Result(reference, clone, results, time.time() - t0, out_dir)

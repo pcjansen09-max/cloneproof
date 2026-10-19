@@ -32,7 +32,7 @@ prompt   : .cloneproof/latest/prompt.md   (give it to your agent)
 
 *A real run. An AI (Claude Sonnet) rebuilt a page from screenshots and said it was done: **57.3 / 100**.
 cloneproof measured it, handed the exact differences back, and the loop took it to **96.6** in nine rounds
-(one round got worse and was rolled back automatically). The page, the screenshots and the final clone are in
+(desktop + mobile; one round got worse and was rolled back automatically). The page, the screenshots and the final clone are in
 [`examples/fika`](examples/fika); the video is [`docs/demo.mp4`](docs/demo.mp4).*
 
 ## Why this exists

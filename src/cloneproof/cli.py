@@ -34,7 +34,8 @@ def _browser_kw(a: argparse.Namespace) -> dict:
     for h in a.header:
         k, _, v = h.partition(":")
         headers[k.strip()] = v.strip()
-    return {"headers": headers or None, "headed": a.headed, "channel": "chrome" if a.chrome else None}
+    return {"headers": headers or None, "headed": a.headed, "channel": "chrome" if a.chrome else None,
+            "parallel": not a.serial}
 
 
 def cmd_compare(a: argparse.Namespace) -> int:
@@ -179,6 +180,7 @@ def main(argv: list[str] | None = None) -> int:
         sp.add_argument("--header", action="append", default=[], metavar="'Name: value'",
                         help="extra HTTP header for both sites (cookies, auth); repeatable")
         sp.add_argument("--headed", action="store_true", help="show the browser (helps with some bot walls)")
+        sp.add_argument("--serial", action="store_true", help="measure the viewports one after another (slower, gentler on weak machines)")
         sp.add_argument("--chrome", action="store_true", help="use your installed Google Chrome instead of Chromium")
 
     c = sub.add_parser("compare", help="measure clone against reference")
