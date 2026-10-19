@@ -10,7 +10,7 @@ ul{list-style:none;padding:0}
 @media(max-width:1200px){.container{padding:0 20px}}
 .nav{position:sticky;top:0;z-index:10;background:rgba(252,245,232,.92);backdrop-filter:blur(8px);transition:box-shadow .2s}
 .nav.sc{box-shadow:0 2px 20px rgba(59,36,24,.1)}
-.nav-in{display:flex;align-items:center;justify-content:space-between;height:76px}
+.nav-in{display:flex;align-items:center;justify-content:space-between;gap:24px;height:76px}
 .logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:22px;color:var(--brown)}
 .logo-i{width:34px;height:34px}
 nav{display:flex;gap:36px;font-weight:500;font-size:16px;color:var(--brown)}
@@ -28,6 +28,7 @@ h2{font-size:44px;line-height:1.15;color:var(--brown);font-weight:700;letter-spa
 .hero-inner{display:grid;grid-template-columns:minmax(0,1fr) 527px;gap:56px;align-items:center}
 .hero .eyebrow{margin-bottom:15px}
 .hero h1{margin-bottom:25px}
+.hero .lead{max-width:560px}
 .btn-row{display:flex;gap:16px;margin:32px 0 36px}
 .hero-points{display:flex;flex-wrap:wrap;gap:12px 28px;font-size:15px}
 .hero-points li,.plan li{display:flex;align-items:center;gap:8px}
@@ -103,7 +104,26 @@ h2{font-size:44px;line-height:1.15;color:var(--brown);font-weight:700;letter-spa
 .footer-about{font-size:15px;line-height:24px;max-width:280px;margin-top:18px}
 .logo-light{color:#fbf5ea}
 .footer-bottom{margin-top:64px;border-top:1px solid rgba(251,245,234,.14);padding:24px 32px 32px;display:flex;justify-content:space-between;font-size:13px;max-width:1200px}
-@media(max-width:900px){
+@media(max-width:1000px){
+.container{padding:0 28px}
+h1{font-size:52px}h2{font-size:38px}
+.hero{padding:72px 0 96px}
+.hero-inner{grid-template-columns:1fr;gap:32px}
+.hero-art svg{max-height:406px}
+.notes{min-height:3.2em}
+.news p{max-width:none}
+#news-form{margin-top:0}
+.press-inner{flex-direction:column;align-items:flex-start;gap:18px}
+.press-list{justify-content:flex-start;gap:19px 36px;font-size:22px}
+.grid{grid-template-columns:repeat(2,1fr)}
+.story-section{padding:104px 0 88px}
+.story{grid-template-columns:1fr;gap:48px}
+.plan.featured{transform:none}
+.newsletter-inner{grid-template-columns:1fr;gap:28px}
+.footer-grid{grid-template-columns:1fr 1fr}
+.footer-bottom{padding:0 28px}
+}
+@media(max-width:640px){
 body{font-size:16px}
 .container{padding:0 20px}
 h1{font-size:40px}h2{font-size:32px}

@@ -105,6 +105,12 @@ Every run writes `.cloneproof/latest/`:
 | `scorecard.png` | 1200x630 image of the result, ready to post |
 | `<viewport>/NN-{original,clone,diff}.png` | the frames |
 
+## What the loop can and cannot do
+
+In our runs the loop lifts an AI clone by 20+ points (58 to 82 on all three widths in eight rounds, 57 to 96.6 on desktop + mobile
+with more rounds). Past the low 80s it needs many rounds or a stronger agent; it is not magic. Full table in
+[docs/benchmarks.md](docs/benchmarks.md).
+
 ## Tested on real sites
 
 Thirteen real sites, mirrored and measured against the live originals: median **93.7**, six above 96

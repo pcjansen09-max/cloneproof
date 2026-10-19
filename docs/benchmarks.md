@@ -48,3 +48,21 @@ The first run scored Hacker News 41 and Wikipedia 19. Both were bugs in clonepro
 - Sites with scroll-pinned sections and sites that need a GPU score lower; a different scroll phase shifts
   every frame below it.
 - Numbers depend on timing (`--wait`) for heavy pages. Re-run before you trust a single value.
+
+## The agent loop on a made-up site (Fika Roasters, `examples/fika`)
+
+An AI (Claude Sonnet) rebuilt the page from screenshots only, then `cloneproof loop` measured it and handed the
+differences back, round after round. Same start clone, same agent, same target:
+
+| run | start | after 5 rounds | after 8 rounds | notes |
+|---|---|---|---|---|
+| first run, desktop + mobile only | 57.3 | 86.9 | 90.2 (6 rounds); 96.6 after 3 more | scores cover two widths |
+| three widths, plain prompt | 58.4 | 78.2 | 79.8 (81.6 after the 9th measurement) | |
+| three widths, prompt with size hints | 58.6 | 76.7 | not finished | |
+| three widths, prompt with page map | 58.9 | 79.9 | 82.7 | |
+| earlier clone, three widths, continued | 85.7 | 96.8 | 96.8 best, one round rolled back | |
+
+What this says, honestly: the loop reliably lifts a clone by 20+ points and the extra prompt detail helps a little
+(a few points, single runs, noisy). Going from the low 80s to 97 takes many more rounds or a smarter agent; it is not
+automatic. One run, where the original sat next to the clone as a local folder, hit a perfect 100 after one round because
+the agent copied the original's files. The loop now detects that and rolls it back.

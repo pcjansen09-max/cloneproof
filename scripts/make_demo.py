@@ -54,6 +54,8 @@ def card(rdir: Path, frame: int, vp: str, rnd: int, total: int, history: list[fl
         img.paste(im, (x, 290))
     d.text((60, 740), f"{score:.1f}", font=font(230), fill=colour(score))
     d.text((590, 880), "/ 100", font=font(48), fill=(140, 148, 165))
+    vps = " + ".join(rep["viewports"].keys())
+    d.text((60, 1000), f"score over: {vps}", font=font(24), fill=(140, 148, 165))
     x0, y0, w, h = 800, 740, 1060, 260
     d.rectangle((x0, y0, x0 + w, y0 + h), outline=(37, 43, 59))
     for g in (50, 75, 100):
