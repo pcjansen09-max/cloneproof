@@ -68,6 +68,14 @@ def build_prompt(result: Result, target: float = 97.0, limit: int = 25, clone_hi
             lines.append(f"      see {result.out_dir}/{i.viewport}/{i.detail['frame']:02d}-diff.png")
     if len(dedupe(result.issues())) > limit:
         lines.append(f"    ... and {len(dedupe(result.issues())) - limit} smaller differences (see report.json)")
+    for n, v in d["viewports"].items():
+        bad = [r for r in v.get("structure", []) if abs(r["dh"]) > 4 or abs(r["dy"]) > 12]
+        if not bad:
+            continue
+        lines += ["", f"Page map, {n}: block, start (original -> clone), height (original -> clone). Fix the first wrong block first; "
+                      "everything below it moves with it."]
+        for r in bad[:10]:
+            lines.append(f"  {r['selector'][:60]:<60} y {r['y_ref']} -> {r['y_clone']}   height {r['h_ref']} -> {r['h_clone']} ({r['dh']:+d})")
     low = [n for n, v in d["viewports"].items() if v["score"] < 85]
     if low:
         lines += ["", f"Weakest viewport(s): {', '.join(low)}. Check responsive rules (media queries, "

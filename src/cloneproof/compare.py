@@ -28,6 +28,7 @@ class ViewportResult:
     noise_pct: float
     frames: list[dict[str, Any]] = field(default_factory=list)
     issues: list[M.Issue] = field(default_factory=list)
+    structure: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def score(self) -> float:
@@ -62,7 +63,7 @@ class Result:
                     "pixel_match_raw": round(v.pixel_match_raw * 100, 1),
                     "noise_masked_pct": round(v.noise_pct, 2),
                     "page_height": {"reference": v.ref_height, "clone": v.clone_height},
-                    "frames": v.frames}
+                    "frames": v.frames, "structure": v.structure}
                 for n, v in self.viewports.items()},
             "issues": [i.to_dict() for i in self.issues()[:max_issues]],
             "issue_count": len(self.issues()),
@@ -123,6 +124,7 @@ async def _one_viewport(browser, vp: str, ref_url: str, clone_url: str, out: Pat
     visual = 0.7 * mean_c + 0.3 * min(contents)
 
     el_scores, el_issues = M.compare_elements(vp, ref, clone)
+    structure = M.structure_table(M.match_elements(ref.elements, clone.elements)[0], ref.width)
     asset_score, asset_issues = M.compare_assets(vp, ref, clone)
     motion_score, motion_issues = M.compare_motion(vp, ref.frames, clone.frames)
 
@@ -160,7 +162,7 @@ async def _one_viewport(browser, vp: str, ref_url: str, clone_url: str, out: Pat
         name=vp, scores=scores, pixel_match_raw=sum(raws) / len(raws),
         ref_height=ref.page_height, clone_height=clone.page_height,
         noise_pct=(sum(noise_cells) / len(noise_cells) * 100) if noise_cells else 0.0,
-        frames=frames_info, issues=issues)
+        frames=frames_info, issues=issues, structure=structure)
 
 
 async def compare_async(reference: str, clone: str, out_dir: Path, *, viewports=("desktop", "tablet", "mobile"),

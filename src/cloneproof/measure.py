@@ -350,6 +350,22 @@ def _style_diffs(r: dict, c: dict) -> dict[str, tuple[str, str]]:
     return out
 
 
+BLOCK_TAGS = {"header", "nav", "section", "footer", "main", "article", "aside"}
+
+
+def structure_table(pairs: list[tuple[dict, dict]], width: int) -> list[dict]:
+    """Top-level blocks (sections, header, footer...) with where they start and how tall they are,
+    original against clone. A map of the page: which block is off, by how much, in order."""
+    rows = []
+    for r, c in sorted(pairs, key=lambda p: p[0]["y"]):
+        if r["tag"] not in BLOCK_TAGS or r["w"] < width * 0.6:
+            continue
+        rows.append({"selector": r["path"], "y_ref": round(r["y"]), "y_clone": round(c["y"]),
+                     "h_ref": round(r["h"]), "h_clone": round(c["h"]), "dh": round(c["h"] - r["h"]),
+                     "dy": round(c["y"] - r["y"])})
+    return rows
+
+
 def compare_elements(vp: str, ref: Probe, clone: Probe) -> tuple[dict[str, float], list[Issue]]:
     pairs, missing, extra = match_elements(ref.elements, clone.elements)
     issues: list[Issue] = []
