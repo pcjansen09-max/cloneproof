@@ -132,6 +132,12 @@ Thirteen real sites, mirrored and measured against the live originals: median **
 (Hacker News, example.com, three.js, Linear, delta-design.nl, WordPress.org). The weak ones are listed with the
 reason in [docs/benchmarks.md](docs/benchmarks.md), including the eight bugs this stress test found in cloneproof itself.
 
+## Against the usual tools
+
+The same seven pages saved by cloneproof, SingleFile, HTTrack and wget, then judged by cloneproof: mean 97.9, 91.8, 46.5 and 89.1
+(median of the pages that finished: 99.8, 97.7, 55.4, 97.7). The judge is also a contestant, so read the caveats and rerun it
+yourself: [docs/showdown.md](docs/showdown.md).
+
 ## How the score works
 
 See [docs/how-it-works.md](docs/how-it-works.md). In short: visual 50, layout 20, style 12,
