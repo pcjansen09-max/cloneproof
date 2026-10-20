@@ -199,3 +199,23 @@ def write_all(result: Result, prompt_text: str) -> None:
     (out / "prompt.md").write_text(prompt_text, encoding="utf-8")
     write_html(result, prompt_text, out / "report.html")
     scorecard(result, out / "scorecard.png")
+
+
+def badge_svg(score: float, label: str = "cloneproof") -> str:
+    """A flat shields-style badge: `cloneproof | 97.1 / 100`. Colour follows the verdict."""
+    msg = f"{score:.1f} / 100"
+    col = "#%02x%02x%02x" % _colour(score)
+    lw = 7 * len(label) + 20            # rough text widths, good enough for a badge
+    mw = 7 * len(msg) + 20
+    w = lw + mw
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="20" role="img" '
+            f'aria-label="{html.escape(label)}: {html.escape(msg)}">'
+            f'<title>{html.escape(label)}: {html.escape(msg)}</title>'
+            f'<linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"/>'
+            f'<stop offset="1" stop-opacity=".1"/></linearGradient>'
+            f'<clipPath id="r"><rect width="{w}" height="20" rx="3" fill="#fff"/></clipPath>'
+            f'<g clip-path="url(#r)"><rect width="{lw}" height="20" fill="#555"/>'
+            f'<rect x="{lw}" width="{mw}" height="20" fill="{col}"/><rect width="{w}" height="20" fill="url(#s)"/></g>'
+            f'<g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11">'
+            f'<text x="{lw / 2:.0f}" y="14">{html.escape(label)}</text>'
+            f'<text x="{lw + mw / 2:.0f}" y="14">{html.escape(msg)}</text></g></svg>')

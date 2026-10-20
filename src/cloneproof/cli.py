@@ -70,6 +70,9 @@ def cmd_compare(a: argparse.Namespace) -> int:
         print(f"\nreport   : {out}/report.html\nprompt   : {out}/prompt.md   (give it to your agent)"
               f"\nscorecard: {out}/scorecard.png")
     (out / "prompt.md").write_text(prompt, encoding="utf-8")
+    if a.badge:
+        from .report import badge_svg
+        Path(a.badge).write_text(badge_svg(res.score), encoding="utf-8")
     if a.open:
         import webbrowser
         webbrowser.open((out / "report.html").resolve().as_uri())
@@ -141,6 +144,14 @@ def cmd_init_agent(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_badge(a: argparse.Namespace) -> int:
+    from .report import badge_svg
+    score = json.loads(Path(a.report).read_text(encoding="utf-8"))["score"]
+    Path(a.out).write_text(badge_svg(score), encoding="utf-8")
+    print(f"{a.out}: {score}")
+    return 0
+
+
 def cmd_doctor(a: argparse.Namespace) -> int:
     import asyncio
     from playwright.async_api import async_playwright
@@ -190,6 +201,7 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--out", default=DEFAULT_OUT)
     c.add_argument("--json", action="store_true", help="print the full result as JSON on stdout")
     c.add_argument("--open", action="store_true")
+    c.add_argument("--badge", metavar="FILE.svg", help="also write a score badge for your README")
     common(c)
     c.set_defaults(fn=cmd_compare)
 
@@ -219,6 +231,11 @@ def main(argv: list[str] | None = None) -> int:
     ia = sub.add_parser("init-agent", help="teach Claude Code / Codex / Cursor to use cloneproof")
     ia.add_argument("--dir", default=".")
     ia.set_defaults(fn=cmd_init_agent)
+
+    bd = sub.add_parser("badge", help="write a README badge from a finished report")
+    bd.add_argument("--report", default=DEFAULT_OUT + "/report.json")
+    bd.add_argument("--out", default="cloneproof-badge.svg")
+    bd.set_defaults(fn=cmd_badge)
 
     sub.add_parser("doctor", help="check the browser").set_defaults(fn=cmd_doctor)
     sub.add_parser("mcp", help="run as an MCP server (stdio)").set_defaults(fn=cmd_mcp)

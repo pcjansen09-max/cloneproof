@@ -6,3 +6,4 @@ dist/
 out/
 .pytest_cache/
 corpus/
+showdown/

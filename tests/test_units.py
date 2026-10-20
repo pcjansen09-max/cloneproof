@@ -103,3 +103,12 @@ def test_size_issue_explains_text_wrapping():
     _, issues = M.compare_elements("desktop", ref, clone)
     size = next(i for i in issues if i.kind == "size")
     assert "wraps to 4 lines" in size.summary and "original to 2" in size.summary
+
+
+def test_badge_is_valid_svg_with_the_score():
+    import xml.etree.ElementTree as ET
+    from cloneproof.report import badge_svg
+    svg = badge_svg(96.6)
+    root = ET.fromstring(svg)
+    assert root.tag.endswith("svg") and "96.6 / 100" in svg
+    assert "#22c55e" not in badge_svg(70.0) and "#22c55e" in badge_svg(99.0)

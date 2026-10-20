@@ -1,0 +1,57 @@
+name: "cloneproof"
+description: "Fail the build when a website clone or migration drifts from the original. Measures with a real browser and writes a score, a report and a fix prompt."
+author: "pcjansen09-max"
+branding:
+  icon: "check-circle"
+  color: "green"
+inputs:
+  reference:
+    description: "URL (or folder) of the original"
+    required: true
+  clone:
+    description: "URL (or folder) of the clone / the migrated site"
+    required: true
+  target:
+    description: "Minimum score (0-100) that must be reached"
+    default: "95"
+  viewports:
+    description: "Comma separated: desktop,tablet,mobile"
+    default: "desktop,tablet,mobile"
+  wait:
+    description: "Milliseconds to wait after load (preloaders)"
+    default: "2500"
+outputs:
+  score:
+    description: "The overall score"
+    value: ${{ steps.run.outputs.score }}
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - shell: bash
+      run: |
+        pip install "git+https://github.com/pcjansen09-max/cloneproof"
+        python -m playwright install --with-deps chromium
+    - id: run
+      shell: bash
+      run: |
+        set +e
+        cloneproof compare "${{ inputs.reference }}" "${{ inputs.clone }}" \
+          --viewports "${{ inputs.viewports }}" --wait "${{ inputs.wait }}" --target "${{ inputs.target }}" \
+          --out cloneproof-report --badge cloneproof-report/badge.svg > cloneproof-report/stdout.txt 2>&1
+        code=$?
+        python - <<'PY' >> "$GITHUB_OUTPUT"
+        import json
+        print("score=" + str(json.load(open("cloneproof-report/report.json"))["score"]))
+        PY
+        cat cloneproof-report/stdout.txt
+        echo "### cloneproof" >> "$GITHUB_STEP_SUMMARY"
+        sed -n '1,25p' cloneproof-report/report.md >> "$GITHUB_STEP_SUMMARY"
+        exit $code
+    - if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: cloneproof-report
+        path: cloneproof-report

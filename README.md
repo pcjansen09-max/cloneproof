@@ -93,6 +93,21 @@ cloneproof capture https://your-own-site.example --out mirror   # offline mirror
 cloneproof serve mirror
 ```
 
+### In CI and in your README
+
+```yaml
+# .github/workflows/clone.yml: fail the build when a migration drifts from the original
+- uses: pcjansen09-max/cloneproof@v0.1.0
+  with:
+    reference: https://old-site.example
+    clone: https://staging.new-site.example
+    target: 95
+```
+
+```bash
+cloneproof compare https://original.example ./dist --badge cloneproof-badge.svg   # then: ![](cloneproof-badge.svg)
+```
+
 ## What you get
 
 Every run writes `.cloneproof/latest/`:
