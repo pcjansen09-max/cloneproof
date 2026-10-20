@@ -112,3 +112,13 @@ def test_badge_is_valid_svg_with_the_score():
     root = ET.fromstring(svg)
     assert root.tag.endswith("svg") and "96.6 / 100" in svg
     assert "#22c55e" not in badge_svg(70.0) and "#22c55e" in badge_svg(99.0)
+
+
+def test_verify_mirror_flags_a_blank_mirror(tmp_path):
+    import asyncio
+    from cloneproof.capture import verify_mirror
+    (tmp_path / "index.html").write_text("<html><body></body></html>")
+    r = asyncio.run(verify_mirror(tmp_path, "index.html", live_text=2000))
+    assert r["ok"] is False
+    (tmp_path / "index.html").write_text("<html><body>" + "hello world " * 200 + "</body></html>")
+    assert asyncio.run(verify_mirror(tmp_path, "index.html", live_text=2400))["ok"] is True

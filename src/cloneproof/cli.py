@@ -86,6 +86,11 @@ def cmd_capture(a: argparse.Namespace) -> int:
           file=sys.stderr)
     info = capture(url, a.out, wait_ms=a.wait, say=_say, heal_rounds=0 if a.no_heal else 3)
     print(f"{info['files']} files, {info['bytes'] // 1024} KB -> {a.out}  (start page: {info['start']})")
+    v = info.get("verify", {})
+    if v:
+        print(("verified: " if v.get("ok") else "WARNING, the mirror may be incomplete: ")
+              + f"{v['mirror_text_chars']} characters of visible text in the mirror, {v['live_text_chars']} on the live page"
+              + (f", page errors: {v['page_errors']}" if v.get("page_errors") else ""))
     if info["skipped"]:
         print(f"skipped (too large): {len(info['skipped'])}")
     print(f"serve it: cloneproof serve {a.out}")

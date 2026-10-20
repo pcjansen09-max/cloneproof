@@ -296,6 +296,10 @@ async def capture_async(url: str, folder: Path, wait_ms: int = 6000, say=lambda 
         except Exception:
             pass
         final_url = page.url
+        try:
+            live_text = int(await page.evaluate("document.body ? document.body.innerText.length : 0"))
+        except Exception:
+            live_text = 0
         await asyncio.gather(*pending, return_exceptions=True)
         await browser.close()
 
@@ -316,6 +320,7 @@ async def capture_async(url: str, folder: Path, wait_ms: int = 6000, say=lambda 
         htmls = sorted(p for p in m.files if p.endswith(".html"))
         start = htmls[0] if htmls else ""
     info["start"] = start
+    info["live_text_chars"] = live_text
     info["source"] = url
     (folder / "_sources.json").write_text(json.dumps(
         {"source": url, "files": {p: u for u, p in sorted(m.urls.items())}}, indent=2), encoding="utf-8")
@@ -391,10 +396,53 @@ async def heal(m: Mirror, folder: Path, rounds: int = 3, say=lambda s: None) -> 
     return added_total
 
 
-def capture(url: str, folder: str | Path, timeout_s: int = 420, **kw) -> dict[str, Any]:
+async def verify_mirror(folder: Path, start: str, live_text: int) -> dict[str, Any]:
+    """Open the finished mirror and check that it really shows the page: page errors, and how much
+    visible text it has compared with the live page. A mirror that opens blank is worse than none."""
+    from playwright.async_api import async_playwright
+
+    from .serve import serve
+
+    srv, port = serve(folder)
+    errors: list[str] = []
+    try:
+        async with async_playwright() as pw:
+            browser = await pw.chromium.launch(args=["--enable-unsafe-swiftshader"])
+            page = await browser.new_page(viewport={"width": 1440, "height": 900})
+            page.on("pageerror", lambda e: errors.append(str(e)[:120]))
+            try:
+                await page.goto(f"http://127.0.0.1:{port}/{start}", wait_until="domcontentloaded", timeout=60000)
+                try:
+                    await page.wait_for_load_state("networkidle", timeout=20000)
+                except Exception:
+                    pass
+                await page.wait_for_timeout(2500)
+                text = int(await page.evaluate("document.body ? document.body.innerText.length : 0"))
+            except Exception as e:
+                text = 0
+                errors.append(str(e)[:120])
+            await browser.close()
+    finally:
+        srv.shutdown()
+    ok = text >= max(40, 0.5 * live_text) if live_text else text > 0
+    return {"ok": ok, "mirror_text_chars": text, "live_text_chars": live_text, "page_errors": errors[:3]}
+
+
+def capture(url: str, folder: str | Path, timeout_s: int = 420, attempts: int = 2, **kw) -> dict[str, Any]:
+    """Mirror `url`. After writing, open the mirror and check it shows the page; if it does not
+    (a transient error page was saved, a blocked request, ...), try again once."""
     async def go():
         return await asyncio.wait_for(capture_async(url, Path(folder), **kw), timeout=timeout_s)
-    try:
-        return asyncio.run(go())
-    except asyncio.TimeoutError:
-        raise RuntimeError(f"capture of {url} did not finish within {timeout_s}s") from None
+
+    info: dict[str, Any] = {}
+    for attempt in range(1, attempts + 1):
+        try:
+            info = asyncio.run(go())
+        except asyncio.TimeoutError:
+            raise RuntimeError(f"capture of {url} did not finish within {timeout_s}s") from None
+        info["verify"] = asyncio.run(verify_mirror(Path(folder), info["start"], info.get("live_text_chars", 0)))
+        info["attempts"] = attempt
+        if info["verify"]["ok"]:
+            break
+        kw.get("say", lambda s: None)(f"the mirror looks wrong ({info['verify']}); trying again")
+    return info
