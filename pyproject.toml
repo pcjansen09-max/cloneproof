@@ -1,11 +1,18 @@
 [project]
 name = "cloneproof"
-version = "0.1.0"
+version = "0.2.0"
 description = "Measure how close a website clone really is to the original, and get the exact prompt that makes your AI agent fix the difference."
 readme = "README.md"
 requires-python = ">=3.10"
+keywords = ["website", "clone", "visual-regression", "playwright", "ai-agents", "claude-code", "mcp", "testing"]
+classifiers = ["Development Status :: 4 - Beta", "Intended Audience :: Developers", "License :: OSI Approved :: MIT License", "Programming Language :: Python :: 3", "Topic :: Software Development :: Testing"]
 license = { text = "MIT" }
 dependencies = ["playwright>=1.45", "pillow>=10", "numpy>=1.26"]
+
+[project.urls]
+Homepage = "https://github.com/pcjansen09-max/cloneproof"
+Issues = "https://github.com/pcjansen09-max/cloneproof/issues"
+Documentation = "https://github.com/pcjansen09-max/cloneproof/blob/main/docs/how-it-works.md"
 
 [project.optional-dependencies]
 mcp = ["mcp>=1.2"]
