@@ -1,0 +1,20 @@
+name: action self-test
+on:
+  push:
+    branches: [main]
+    paths: ["action.yml", ".github/workflows/action-selftest.yml"]
+  workflow_dispatch:
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        id: cp
+        with:
+          reference: examples/fika/original
+          clone: examples/fika/clone
+          viewports: desktop
+          target: "90"
+          wait: "600"
+      - run: echo "score ${{ steps.cp.outputs.score }}"

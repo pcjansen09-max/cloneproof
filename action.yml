@@ -38,6 +38,7 @@ runs:
       shell: bash
       run: |
         set +e
+        mkdir -p cloneproof-report
         cloneproof compare "${{ inputs.reference }}" "${{ inputs.clone }}" \
           --viewports "${{ inputs.viewports }}" --wait "${{ inputs.wait }}" --target "${{ inputs.target }}" \
           --out cloneproof-report --badge cloneproof-report/badge.svg > cloneproof-report/stdout.txt 2>&1

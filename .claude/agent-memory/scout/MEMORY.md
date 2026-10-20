@@ -1,0 +1,1 @@
+- [Listings cloneproof](listings-cloneproof.md) — 20-10: welke awesome-lijsten/MCP-registries PRs aannemen, regels, uitsluitingen

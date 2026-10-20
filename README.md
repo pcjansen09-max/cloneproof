@@ -97,7 +97,7 @@ cloneproof serve mirror
 
 ```yaml
 # .github/workflows/clone.yml: fail the build when a migration drifts from the original
-- uses: pcjansen09-max/cloneproof@v0.1.0
+- uses: pcjansen09-max/cloneproof@main
   with:
     reference: https://old-site.example
     clone: https://staging.new-site.example
