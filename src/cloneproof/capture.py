@@ -37,6 +37,9 @@ MAX_BYTES = 80 * 1024 * 1024
 TEXT_EXT = (".html", ".css", ".js", ".mjs", ".json", ".svg", ".xml", ".webmanifest")
 MEDIA_EXT = (".mp4", ".webm", ".mov", ".m4v", ".ogg", ".mp3", ".wav", ".glb", ".gltf", ".mp4")
 BOUNDARY = r'(?=["\'`)\s>,;\\]|$)'
+# In code (JS, JSON) a rewritten address stays ABSOLUTE, on this placeholder host. The server swaps it for the real one when it
+# serves the file (serve.py). A relative path would break new URL(address), and many sites call that with a full address.
+MIRROR = "http://cloneproof.mirror"
 
 EXT_BY_TYPE = {
     "text/html": ".html", "text/css": ".css", "javascript": ".js", "application/json": ".json",
@@ -152,6 +155,8 @@ class Mirror:
                 # while "//#" (sourceMappingURL) and "//" are comments that urljoin turns into the file itself
                 looks_like_url = bool(re.search(r"[A-Za-z0-9]", tok)) and not (
                     tok.startswith("//") and not re.match(r"//[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+(/|$)", tok))
+                if is_code and tok.startswith(("http://", "https://", "//")):
+                    looks_like_url = False        # full addresses in code are handled below, as absolute addresses
                 if looks_like_url and not tok.startswith(("#", "data:", "javascript:", "mailto:", "tel:")) and ("/" in tok or "." in tok):
                     try:
                         full = urljoin(base, tok.replace("&amp;", "&")).split("#")[0]
@@ -189,8 +194,9 @@ class Mirror:
     def _rewrite(self, text: str, src: str) -> str:
         text = self.rewrite_relative(text, src)
         origin = urlparse(self.origin)
+        code = src.lower().endswith((".js", ".mjs", ".json"))     # code keeps ABSOLUTE addresses (placeholder host)
         for url in sorted(self.urls, key=len, reverse=True):
-            local = relative(src, self.urls[url]).replace("\\", "\\\\")
+            local = (f"{MIRROR}/{self.urls[url]}" if code else relative(src, self.urls[url])).replace("\\", "\\\\")
             bare = url.split("://", 1)[-1]
             for form in (url, "//" + bare):
                 text = re.sub(re.escape(form) + BOUNDARY, local, text)
@@ -198,7 +204,8 @@ class Mirror:
             if u.netloc == origin.netloc:
                 pth = u.path + (f"?{u.query}" if u.query else "")
                 if len(pth) > 4:
-                    text = re.sub(rf'(["\'(]){re.escape(pth)}(["\')])', rf"\g<1>{local}\g<2>", text)
+                    own = ("/" + self.urls[url]).replace("\\", "\\\\") if code else local
+                    text = re.sub(rf'(["\'(]){re.escape(pth)}(["\')])', rf"\g<1>{own}\g<2>", text)
         # The URL of a FOLDER (a webpack public path): a file name is appended at run time. Root-relative, because
         # the mirror is served on its own root.
         counts: dict[str, int] = {}
@@ -212,12 +219,12 @@ class Mirror:
             counts[d] = counts.get(d, 0) + 1
             local_dir[d] = local.rsplit("/", 1)[0] + "/"
         for d in sorted((d for d in counts if counts[d] >= 2), key=len, reverse=True):
-            repl = ("/" + local_dir[d]).replace("\\", "\\\\")
+            repl = ((MIRROR + "/" if code else "/") + local_dir[d]).replace("\\", "\\\\")
             text = re.sub(re.escape(d) + BOUNDARY, repl, text)
             text = re.sub(re.escape("//" + d.split("://", 1)[-1]) + BOUNDARY, repl, text)
         start = self.urls.get(self.origin) or self.urls.get(self.origin.rstrip("/") + "/")
         if start:
-            to_start = relative(src, start).replace("\\", "\\\\")
+            to_start = (MIRROR if code else relative(src, start)).replace("\\", "\\\\")
             for bare in (self.origin.rstrip("/"), "//" + self.origin.split("://", 1)[-1].rstrip("/")):
                 text = re.sub(re.escape(bare) + BOUNDARY, to_start, text)
         return text

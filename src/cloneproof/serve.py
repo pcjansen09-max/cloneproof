@@ -43,6 +43,20 @@ class _Handler(SimpleHTTPRequestHandler):
     def send_head(self):
         rng = self.headers.get("Range")
         path = self.translate_path(self.path)
+        if os.path.isfile(path) and path.lower().endswith((".js", ".mjs", ".json")):
+            # Code carries addresses on the placeholder host (capture.MIRROR); swap in the host this request came to.
+            import io
+            from .capture import MIRROR
+            data = Path(path).read_bytes()
+            if MIRROR.encode() in data:
+                host = (self.headers.get("Host") or "127.0.0.1").encode()
+                data = data.replace(MIRROR.encode(), b"http://" + host)
+            self.send_response(200)
+            self.send_header("Content-Type", self.guess_type(path))
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self._left = None
+            return io.BytesIO(data)
         if not rng or not os.path.isfile(path):
             return super().send_head()
         m = re.match(r"bytes=(\d*)-(\d*)", rng)

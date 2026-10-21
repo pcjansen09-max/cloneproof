@@ -5,6 +5,7 @@ from PIL import Image, ImageDraw
 
 from cloneproof import measure as M
 from cloneproof.capture import Mirror, local_path
+from cloneproof.serve import serve
 
 
 def test_relative_and_entity_urls_are_rewritten():
@@ -153,7 +154,7 @@ def test_cdn_folder_url_points_to_the_local_folder():
     m.add("https://cdn.test/assets/app.js", "javascript", b"1")
     m.add("https://cdn.test/assets/vendor.js", "javascript", b"1")
     out = m.rewrite('n.p="https://cdn.test/assets/";', "_ext/cdn.test/assets/app.js")
-    assert 'n.p="/_ext/cdn.test/assets/"' in out, out
+    assert 'n.p="http://cloneproof.mirror/_ext/cdn.test/assets/"' in out, out      # absolute in code: new URL() needs that
 
 
 def test_integrity_attributes_are_removed_from_mirrored_html(tmp_path):
@@ -165,3 +166,31 @@ def test_integrity_attributes_are_removed_from_mirrored_html(tmp_path):
     m.write()
     out = (tmp_path / "index.html").read_text()
     assert "integrity=" not in out and "// note" in out, out
+
+
+def test_absolute_urls_in_javascript_stay_absolute_via_a_placeholder_host(tmp_path):
+    """figma.com calls new URL(address) with an absolute address; a relative replacement threw 'Invalid URL' and the site
+    stayed blank. In code the replacement is absolute on a placeholder host that the server swaps for the real one."""
+    from cloneproof.capture import MIRROR
+    m = Mirror("https://x.test/", tmp_path)
+    m.add("https://x.test/", "text/html", b"<html></html>")
+    m.add("https://x.test/img/a.png", "image/png", b"1")
+    m.add("https://x.test/_next/app.js", "javascript", b'const u=new URL("https://x.test/img/a.png");')
+    m.write()
+    code = (tmp_path / "_next" / "app.js").read_text()
+    assert f'new URL("{MIRROR}/img/a.png")' in code, code
+
+
+def test_server_swaps_the_placeholder_host_for_the_real_one(tmp_path):
+    import http.client
+    from cloneproof.capture import MIRROR
+    (tmp_path / "app.js").write_text(f'var u="{MIRROR}/img/a.png";')
+    (tmp_path / "index.html").write_text("<html></html>")
+    srv, port = serve(tmp_path)
+    try:
+        c = http.client.HTTPConnection("127.0.0.1", port)
+        c.request("GET", "/app.js")
+        body = c.getresponse().read().decode()
+    finally:
+        srv.shutdown()
+    assert body == f'var u="http://127.0.0.1:{port}/img/a.png";', body
