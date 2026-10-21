@@ -35,7 +35,7 @@ def _browser_kw(a: argparse.Namespace) -> dict:
         k, _, v = h.partition(":")
         headers[k.strip()] = v.strip()
     return {"headers": headers or None, "headed": a.headed, "channel": "chrome" if a.chrome else None,
-            "parallel": not a.serial, "user_agent": a.user_agent}
+            "parallel": not a.serial, "user_agent": a.user_agent, "cdp": a.cdp}
 
 
 def cmd_compare(a: argparse.Namespace) -> int:
@@ -84,7 +84,7 @@ def cmd_capture(a: argparse.Namespace) -> int:
     url = a.url if "://" in a.url else "https://" + a.url
     print("note: only mirror sites you own or have permission to copy. Content belongs to its authors.",
           file=sys.stderr)
-    info = capture(url, a.out, wait_ms=a.wait, say=_say, heal_rounds=0 if a.no_heal else 3, user_agent=a.user_agent)
+    info = capture(url, a.out, wait_ms=a.wait, say=_say, heal_rounds=0 if a.no_heal else 3, user_agent=a.user_agent, cdp=a.cdp)
     print(f"{info['files']} files, {info['bytes'] // 1024} KB -> {a.out}  (start page: {info['start']})")
     v = info.get("verify", {})
     if v:
@@ -200,6 +200,8 @@ def main(argv: list[str] | None = None) -> int:
         sp.add_argument("--serial", action="store_true", help="measure the viewports one after another (slower, gentler on weak machines)")
         sp.add_argument("--user-agent", dest="user_agent", default=None,
                         help="user agent to send (default: an ordinary Chrome, not 'HeadlessChrome')")
+        sp.add_argument("--cdp", default=None, metavar="URL",
+                        help="use YOUR running Chrome (started with --remote-debugging-port), with its cookies; for bot walls a human already passed")
         sp.add_argument("--chrome", action="store_true", help="use your installed Google Chrome instead of Chromium")
 
     c = sub.add_parser("compare", help="measure clone against reference")
@@ -217,6 +219,7 @@ def main(argv: list[str] | None = None) -> int:
     cp.add_argument("--out", default="site-mirror")
     cp.add_argument("--wait", type=int, default=6000)
     cp.add_argument("--user-agent", dest="user_agent", default=None, help="user agent to send (default: an ordinary Chrome)")
+    cp.add_argument("--cdp", default=None, metavar="URL", help="use your running Chrome (remote debugging port) with its own session")
     cp.add_argument("--no-heal", action="store_true", help="skip the pass that fetches files the mirror still misses")
     cp.set_defaults(fn=cmd_capture)
 

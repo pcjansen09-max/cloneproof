@@ -48,9 +48,10 @@ class _Handler(SimpleHTTPRequestHandler):
             import io
             from .capture import MIRROR
             data = Path(path).read_bytes()
-            if MIRROR.encode() in data:
-                host = (self.headers.get("Host") or "127.0.0.1").encode()
-                data = data.replace(MIRROR.encode(), b"http://" + host)
+            host = (self.headers.get("Host") or "127.0.0.1").encode()
+            for placeholder in (MIRROR, "http://kopie.invalid"):         # ours, and the one SuusOS copies use
+                if placeholder.encode() in data:
+                    data = data.replace(placeholder.encode(), b"http://" + host)
             self.send_response(200)
             self.send_header("Content-Type", self.guess_type(path))
             self.send_header("Content-Length", str(len(data)))

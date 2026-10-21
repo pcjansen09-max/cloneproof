@@ -12,7 +12,7 @@ from typing import Any, Callable
 from PIL import Image
 
 from . import measure as M
-from .browser import LAUNCH_ARGS
+from .browser import launch
 from .probe import VIEWPORTS, Probe, probe_page
 
 WEIGHTS = {"visual": 0.50, "layout": 0.20, "style": 0.12, "content": 0.08, "assets": 0.05, "motion": 0.05}
@@ -170,18 +170,15 @@ async def compare_async(reference: str, clone: str, out_dir: Path, *, viewports=
                         wait_ms: int = 2500, settle_ms: int = 900, noise: bool = True, max_frames: int = 24,
                         say: Callable[[str], None] = lambda s: None, headers: dict | None = None,
                         headed: bool = False, channel: str | None = None, parallel: bool = True,
-                        user_agent: str | None = None) -> Result:
+                        user_agent: str | None = None, cdp: str | None = None) -> Result:
     from playwright.async_api import async_playwright
 
     t0 = time.time()
     out_dir.mkdir(parents=True, exist_ok=True)
     results: dict[str, ViewportResult] = {}
     async with async_playwright() as pw:
-        opts: dict = {"args": ["--use-gl=swiftshader", "--hide-scrollbars", "--force-color-profile=srgb", *LAUNCH_ARGS],
-                      "headless": not headed}
-        if channel:
-            opts["channel"] = channel
-        browser = await pw.chromium.launch(**opts)
+        browser = await launch(pw, headed=headed, channel=channel, cdp=cdp,
+                               extra_args=["--use-gl=swiftshader", "--hide-scrollbars", "--force-color-profile=srgb"])
         async def run(vp: str) -> ViewportResult:
             return await _one_viewport(
                 browser, vp, reference, clone, out_dir, wait_ms=wait_ms, settle_ms=settle_ms,
@@ -194,7 +191,8 @@ async def compare_async(reference: str, clone: str, out_dir: Path, *, viewports=
                 for vp in viewports:
                     results[vp] = await run(vp)
         finally:
-            await browser.close()
+            if not getattr(browser, "_cp_cdp", False):
+                await browser.close()            # an attached Chrome is the user's own: leave it open
     return Result(reference, clone, results, time.time() - t0, out_dir)
 
 

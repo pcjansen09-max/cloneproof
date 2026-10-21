@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urljoin, urlparse
 
-from .browser import LAUNCH_ARGS, normal_user_agent
+from .browser import LAUNCH_ARGS, launch, new_page, normal_user_agent
 
 KEEP = ("text/html", "text/css", "javascript", "font", "image", "video", "audio",
         "application/json", "octet-stream", "model/", "application/wasm", "text/plain", "xml")
@@ -272,15 +272,14 @@ HARVEST_JS = r"""
 
 
 async def capture_async(url: str, folder: Path, wait_ms: int = 6000, say=lambda s: None,
-                        heal_rounds: int = 3, user_agent: str | None = None) -> dict[str, Any]:
+                        heal_rounds: int = 3, user_agent: str | None = None, cdp: str | None = None) -> dict[str, Any]:
     from playwright.async_api import async_playwright
 
     m = Mirror(url, folder)
     pending: list[asyncio.Task] = []
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(args=LAUNCH_ARGS)
-        page = await browser.new_page(viewport={"width": 1600, "height": 1000},
-                                      user_agent=user_agent or normal_user_agent(browser.version))
+        browser = await launch(pw, cdp=cdp)
+        page, _ctx = await new_page(browser, {"width": 1600, "height": 1000}, user_agent)
 
         async def grab(resp) -> None:
             try:
@@ -340,7 +339,7 @@ async def capture_async(url: str, folder: Path, wait_ms: int = 6000, say=lambda 
         except Exception:
             live_text = 0
         await asyncio.gather(*pending, return_exceptions=True)
-        await browser.close()
+        await (page.close() if getattr(browser, "_cp_cdp", False) else browser.close())
 
     if main_status >= 400:
         raise RuntimeError(

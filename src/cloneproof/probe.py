@@ -21,7 +21,7 @@ from typing import Any
 
 from PIL import Image
 
-from .browser import normal_user_agent
+from .browser import new_page, normal_user_agent
 
 VIEWPORTS = {"mobile": (390, 844), "tablet": (768, 1024), "desktop": (1440, 900)}
 MAX_FRAMES = 24
@@ -173,23 +173,19 @@ async def _settle(page, wait_ms: int) -> None:
         pass
 
 
+async def new_page_for(browser, viewport: str, width: int, height: int, headers, user_agent):
+    return await new_page(browser, {"width": width, "height": height}, user_agent,
+                          device_scale_factor=1, is_mobile=(viewport == "mobile"), has_touch=(viewport == "mobile"),
+                          extra_http_headers=headers or {}, locale="en-US", timezone_id="Europe/Amsterdam")
+
+
 async def _probe_page(browser, url: str, viewport: str, *, wait_ms: int = 2500,
                      settle_ms: int = 900, positions: list[int] | None = None,
                      max_frames: int = MAX_FRAMES, headers: dict | None = None,
                      user_agent: str | None = None) -> Probe:
     """Load `url` at one viewport and measure it."""
     width, height = VIEWPORTS[viewport]
-    ctx = await browser.new_context(
-        viewport={"width": width, "height": height},
-        device_scale_factor=1,
-        is_mobile=(viewport == "mobile"),
-        has_touch=(viewport == "mobile"),
-        extra_http_headers=headers or {},
-        user_agent=user_agent or normal_user_agent(browser.version),
-        locale="en-US",
-        timezone_id="Europe/Amsterdam",
-    )
-    page = await ctx.new_page()
+    page, ctx = await new_page_for(browser, viewport, width, height, headers, user_agent)
     result = Probe(url=url, viewport=viewport, width=width, height=height)
     page.on("console", lambda m: result.console_errors.append(m.text[:200]) if m.type == "error" else None)
     page.on("requestfailed", lambda r: result.failed_requests.append(
@@ -234,7 +230,7 @@ async def _probe_page(browser, url: str, viewport: str, *, wait_ms: int = 2500,
             result.frames.append(Image.open(io.BytesIO(png)).convert("RGB"))
             await page.evaluate(UNFREEZE_MEDIA_JS)
     finally:
-        await ctx.close()
+        await (ctx.close() if ctx is not None else page.close())
     return result
 
 
