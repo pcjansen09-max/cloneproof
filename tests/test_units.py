@@ -122,3 +122,16 @@ def test_verify_mirror_flags_a_blank_mirror(tmp_path):
     assert r["ok"] is False
     (tmp_path / "index.html").write_text("<html><body>" + "hello world " * 200 + "</body></html>")
     assert asyncio.run(verify_mirror(tmp_path, "index.html", live_text=2400))["ok"] is True
+
+
+def test_javascript_strings_that_look_like_paths_are_left_alone():
+    """figma.com: "/." and "../" inside a JS bundle resolved to the start page and became ../../index.html,
+    which broke the script and left the whole site blank."""
+    m = Mirror("https://x.test/", "/tmp/unused")
+    m.add("https://x.test/", "text/html", b"<html></html>")
+    m.add("https://x.test/_next/static/chunks/app.js", "javascript", b"1")
+    m.add("https://x.test/_next/static/chunks/chunk-abc.js", "javascript", b"1")
+    js = 'var a="/.",b="../",c=".//",d="./chunk-abc.js";'
+    out = m.rewrite(js, "_next/static/chunks/app.js")
+    assert 'a="/."' in out and 'b="../"' in out and 'c=".//"' in out and "index.html" not in out, out
+    assert "chunk-abc.js" in out.split('d="')[1]

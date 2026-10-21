@@ -29,6 +29,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urljoin, urlparse
 
+from .browser import LAUNCH_ARGS, normal_user_agent
+
 KEEP = ("text/html", "text/css", "javascript", "font", "image", "video", "audio",
         "application/json", "octet-stream", "model/", "application/wasm", "text/plain", "xml")
 MAX_BYTES = 80 * 1024 * 1024
@@ -138,6 +140,7 @@ class Mirror:
         if not base or len(text) > 6_000_000:
             return text
         cache: dict[str, str | None] = {}
+        is_code = src.lower().endswith((".js", ".mjs", ".json"))
 
         def sub(m: re.Match) -> str:
             tok = m.group("u")
@@ -153,6 +156,8 @@ class Mirror:
                     mapped = self.urls.get(full)
                     if mapped is None and full.endswith("/") is False:
                         mapped = self.urls.get(full + "/")
+                    if is_code and (full.endswith("/") or "." not in full.rsplit("/", 1)[-1]):
+                        mapped = None       # in code, "/." or "../" is a string, not a link to the start page
                     if mapped is not None:
                         hit = relative(src, mapped)
                 cache[tok] = hit
@@ -235,14 +240,15 @@ HARVEST_JS = r"""
 
 
 async def capture_async(url: str, folder: Path, wait_ms: int = 6000, say=lambda s: None,
-                        heal_rounds: int = 3) -> dict[str, Any]:
+                        heal_rounds: int = 3, user_agent: str | None = None) -> dict[str, Any]:
     from playwright.async_api import async_playwright
 
     m = Mirror(url, folder)
     pending: list[asyncio.Task] = []
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(args=["--enable-unsafe-swiftshader"])
-        page = await browser.new_page(viewport={"width": 1600, "height": 1000})
+        browser = await pw.chromium.launch(args=LAUNCH_ARGS)
+        page = await browser.new_page(viewport={"width": 1600, "height": 1000},
+                                      user_agent=user_agent or normal_user_agent(browser.version))
 
         async def grab(resp) -> None:
             try:
@@ -255,7 +261,8 @@ async def capture_async(url: str, folder: Path, wait_ms: int = 6000, say=lambda 
 
         page.on("response", lambda r: pending.append(asyncio.create_task(grab(r))))
         say(f"opening {url}")
-        await page.goto(url, wait_until="domcontentloaded", timeout=120000)
+        first = await page.goto(url, wait_until="domcontentloaded", timeout=120000)
+        main_status = first.status if first else 0
         try:
             await page.wait_for_load_state("networkidle", timeout=30000)
         except Exception:
@@ -303,6 +310,10 @@ async def capture_async(url: str, folder: Path, wait_ms: int = 6000, say=lambda 
         await asyncio.gather(*pending, return_exceptions=True)
         await browser.close()
 
+    if main_status >= 400:
+        raise RuntimeError(
+            f"{url} answered HTTP {main_status} (a block or an error page), so there is nothing to mirror. "
+            "Try again later, use --chrome / --headed, or open it once in your own browser (cookies: --header).")
     if final_url.rstrip("/") != url.rstrip("/"):
         if urlparse(final_url).netloc == urlparse(url).netloc:
             m.origin = final_url       # redirect on the same host: treat the final URL as the page
@@ -344,8 +355,9 @@ async def heal(m: Mirror, folder: Path, rounds: int = 3, say=lambda s: None) -> 
         missing: set[str] = set()
         try:
             async with async_playwright() as pw:
-                browser = await pw.chromium.launch(args=["--enable-unsafe-swiftshader"])
-                page = await browser.new_page(viewport={"width": 1600, "height": 1000})
+                browser = await pw.chromium.launch(args=LAUNCH_ARGS)
+                page = await browser.new_page(viewport={"width": 1600, "height": 1000},
+                                              user_agent=normal_user_agent(browser.version))
                 page.on("response", lambda r: missing.add(r.url) if r.status == 404
                         and r.url.startswith(f"http://127.0.0.1:{port}/") else None)
                 try:
@@ -407,8 +419,9 @@ async def verify_mirror(folder: Path, start: str, live_text: int) -> dict[str, A
     errors: list[str] = []
     try:
         async with async_playwright() as pw:
-            browser = await pw.chromium.launch(args=["--enable-unsafe-swiftshader"])
-            page = await browser.new_page(viewport={"width": 1440, "height": 900})
+            browser = await pw.chromium.launch(args=LAUNCH_ARGS)
+            page = await browser.new_page(viewport={"width": 1440, "height": 900},
+                                          user_agent=normal_user_agent(browser.version))
             page.on("pageerror", lambda e: errors.append(str(e)[:120]))
             try:
                 await page.goto(f"http://127.0.0.1:{port}/{start}", wait_until="domcontentloaded", timeout=60000)
@@ -425,6 +438,8 @@ async def verify_mirror(folder: Path, start: str, live_text: int) -> dict[str, A
     finally:
         srv.shutdown()
     ok = text >= max(40, 0.5 * live_text) if live_text else text > 0
+    if live_text and live_text < 30:
+        ok = False           # a live page with almost no text is probably a block or challenge page
     return {"ok": ok, "mirror_text_chars": text, "live_text_chars": live_text, "page_errors": errors[:3]}
 
 

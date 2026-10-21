@@ -12,6 +12,7 @@ from typing import Any, Callable
 from PIL import Image
 
 from . import measure as M
+from .browser import LAUNCH_ARGS
 from .probe import VIEWPORTS, Probe, probe_page
 
 WEIGHTS = {"visual": 0.50, "layout": 0.20, "style": 0.12, "content": 0.08, "assets": 0.05, "motion": 0.05}
@@ -175,8 +176,8 @@ async def compare_async(reference: str, clone: str, out_dir: Path, *, viewports=
     out_dir.mkdir(parents=True, exist_ok=True)
     results: dict[str, ViewportResult] = {}
     async with async_playwright() as pw:
-        opts: dict = {"args": ["--enable-unsafe-swiftshader", "--use-gl=swiftshader",
-                               "--hide-scrollbars", "--force-color-profile=srgb"], "headless": not headed}
+        opts: dict = {"args": ["--use-gl=swiftshader", "--hide-scrollbars", "--force-color-profile=srgb", *LAUNCH_ARGS],
+                      "headless": not headed}
         if channel:
             opts["channel"] = channel
         browser = await pw.chromium.launch(**opts)

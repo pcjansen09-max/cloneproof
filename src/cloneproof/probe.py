@@ -21,6 +21,8 @@ from typing import Any
 
 from PIL import Image
 
+from .browser import normal_user_agent
+
 VIEWPORTS = {"mobile": (390, 844), "tablet": (768, 1024), "desktop": (1440, 900)}
 MAX_FRAMES = 24
 
@@ -173,7 +175,8 @@ async def _settle(page, wait_ms: int) -> None:
 
 async def _probe_page(browser, url: str, viewport: str, *, wait_ms: int = 2500,
                      settle_ms: int = 900, positions: list[int] | None = None,
-                     max_frames: int = MAX_FRAMES, headers: dict | None = None) -> Probe:
+                     max_frames: int = MAX_FRAMES, headers: dict | None = None,
+                     user_agent: str | None = None) -> Probe:
     """Load `url` at one viewport and measure it."""
     width, height = VIEWPORTS[viewport]
     ctx = await browser.new_context(
@@ -182,6 +185,7 @@ async def _probe_page(browser, url: str, viewport: str, *, wait_ms: int = 2500,
         is_mobile=(viewport == "mobile"),
         has_touch=(viewport == "mobile"),
         extra_http_headers=headers or {},
+        user_agent=user_agent or normal_user_agent(browser.version),
         locale="en-US",
         timezone_id="Europe/Amsterdam",
     )
