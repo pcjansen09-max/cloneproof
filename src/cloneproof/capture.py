@@ -148,7 +148,11 @@ class Mirror:
                 hit = cache[tok]
             else:
                 hit = None
-                if not tok.startswith(("#", "data:", "javascript:", "mailto:", "tel:")) and ("/" in tok or "." in tok):
+                # only something that looks like an address: a protocol-relative one needs a host ("//cdn.x.com/a.js"),
+                # while "//#" (sourceMappingURL) and "//" are comments that urljoin turns into the file itself
+                looks_like_url = bool(re.search(r"[A-Za-z0-9]", tok)) and not (
+                    tok.startswith("//") and not re.match(r"//[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+(/|$)", tok))
+                if looks_like_url and not tok.startswith(("#", "data:", "javascript:", "mailto:", "tel:")) and ("/" in tok or "." in tok):
                     try:
                         full = urljoin(base, tok.replace("&amp;", "&")).split("#")[0]
                     except ValueError:

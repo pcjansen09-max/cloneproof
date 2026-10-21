@@ -135,3 +135,13 @@ def test_javascript_strings_that_look_like_paths_are_left_alone():
     out = m.rewrite(js, "_next/static/chunks/app.js")
     assert 'a="/."' in out and 'b="../"' in out and 'c=".//"' in out and "index.html" not in out, out
     assert "chunk-abc.js" in out.split('d="')[1]
+
+
+def test_sourcemap_comment_is_left_alone():
+    m = Mirror("https://x.test/", "/tmp/unused")
+    m.add("https://x.test/", "text/html", b"<html></html>")
+    m.add("https://x.test/assets/app.js", "javascript", b"1")
+    js = "let a=1;\n//# sourceMappingURL=app.js.map\n"
+    assert m.rewrite(js, "assets/app.js") == js
+    m.add("https://cdn.test/lib.js", "javascript", b"1")
+    assert "//cdn.test" not in m.rewrite('<script src="//cdn.test/lib.js"></script>', "index.html")
