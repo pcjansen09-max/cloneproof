@@ -154,3 +154,14 @@ def test_cdn_folder_url_points_to_the_local_folder():
     m.add("https://cdn.test/assets/vendor.js", "javascript", b"1")
     out = m.rewrite('n.p="https://cdn.test/assets/";', "_ext/cdn.test/assets/app.js")
     assert 'n.p="/_ext/cdn.test/assets/"' in out, out
+
+
+def test_integrity_attributes_are_removed_from_mirrored_html(tmp_path):
+    m = Mirror("https://x.test/", tmp_path)
+    html = ('<html><head><script src="https://x.test/a.js" integrity="sha384-abc" crossorigin="anonymous"></script></head>'
+            "<body><script>\n// note\nvar a=1;\n</script></body></html>")
+    m.add("https://x.test/", "text/html", html.encode())
+    m.add("https://x.test/a.js", "javascript", b"1")
+    m.write()
+    out = (tmp_path / "index.html").read_text()
+    assert "integrity=" not in out and "// note" in out, out

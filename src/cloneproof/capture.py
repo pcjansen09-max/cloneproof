@@ -231,6 +231,9 @@ class Mirror:
             dst.parent.mkdir(parents=True, exist_ok=True)
             if Path(p).suffix.lower() in TEXT_EXT:
                 text = self.rewrite(body.decode("utf-8", errors="replace"), p)
+                if p.endswith(".html"):
+                    # Subresource Integrity: a rewritten file no longer matches its hash and the browser blocks it
+                    text = re.sub(r"""\s+integrity=(?:"[^"]*"|'[^']*')""", "", text, flags=re.I)
                 if p.endswith(".html") and not re.search(r"<meta[^>]+charset", text[:4096], re.I):
                     text = re.sub(r"(<head[^>]*>)", r'\1<meta charset="utf-8">', text, count=1, flags=re.I) \
                         if re.search(r"<head", text, re.I) else '<meta charset="utf-8">' + text
