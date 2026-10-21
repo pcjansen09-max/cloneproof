@@ -199,6 +199,22 @@ class Mirror:
                 pth = u.path + (f"?{u.query}" if u.query else "")
                 if len(pth) > 4:
                     text = re.sub(rf'(["\'(]){re.escape(pth)}(["\')])', rf"\g<1>{local}\g<2>", text)
+        # The URL of a FOLDER (a webpack public path): a file name is appended at run time. Root-relative, because
+        # the mirror is served on its own root.
+        counts: dict[str, int] = {}
+        local_dir: dict[str, str] = {}
+        for url, local in self.urls.items():
+            if "?" in url or "/" not in local:
+                continue
+            d = url.rsplit("/", 1)[0] + "/"
+            if urlparse(d).path in ("", "/"):
+                continue
+            counts[d] = counts.get(d, 0) + 1
+            local_dir[d] = local.rsplit("/", 1)[0] + "/"
+        for d in sorted((d for d in counts if counts[d] >= 2), key=len, reverse=True):
+            repl = ("/" + local_dir[d]).replace("\\", "\\\\")
+            text = re.sub(re.escape(d) + BOUNDARY, repl, text)
+            text = re.sub(re.escape("//" + d.split("://", 1)[-1]) + BOUNDARY, repl, text)
         start = self.urls.get(self.origin) or self.urls.get(self.origin.rstrip("/") + "/")
         if start:
             to_start = relative(src, start).replace("\\", "\\\\")

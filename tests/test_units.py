@@ -145,3 +145,12 @@ def test_sourcemap_comment_is_left_alone():
     assert m.rewrite(js, "assets/app.js") == js
     m.add("https://cdn.test/lib.js", "javascript", b"1")
     assert "//cdn.test" not in m.rewrite('<script src="//cdn.test/lib.js"></script>', "index.html")
+
+
+def test_cdn_folder_url_points_to_the_local_folder():
+    m = Mirror("https://x.test/", "/tmp/unused")
+    m.add("https://x.test/", "text/html", b"<html></html>")
+    m.add("https://cdn.test/assets/app.js", "javascript", b"1")
+    m.add("https://cdn.test/assets/vendor.js", "javascript", b"1")
+    out = m.rewrite('n.p="https://cdn.test/assets/";', "_ext/cdn.test/assets/app.js")
+    assert 'n.p="/_ext/cdn.test/assets/"' in out, out
