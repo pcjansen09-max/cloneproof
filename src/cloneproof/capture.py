@@ -232,6 +232,21 @@ class Mirror:
                 text = re.sub(re.escape(bare) + BOUNDARY, to_start, text)
         return text
 
+    def original_path(self, text: str, p: str) -> str:
+        """The start page of a site that lives on a path (/nl): the site's router reads location.pathname and must see /nl,
+        not /nl/index.html (React Router / Remix: "Application Error"). Put the path back, and pin relative URLs with <base>."""
+        u = urlparse(self.origin)
+        path = u.path or "/"
+        if path == "/":
+            return text
+        original = path + (f"?{u.query}" if u.query else "")
+        folder = (p.rsplit("/", 1)[0] + "/") if "/" in p else ""
+        inject = (f'<base href="/{folder}"><script>try{{history.replaceState(history.state,"",'
+                  f'{json.dumps(original)})}}catch(e){{}}</script>')
+        if re.search(r"<head[^>]*>", text, re.I):
+            return re.sub(r"(<head[^>]*>)", lambda m: m.group(1) + inject, text, count=1, flags=re.I)
+        return inject + text
+
     def write(self) -> dict[str, Any]:
         root = self.folder.resolve()
         for p, body in self.files.items():
@@ -241,6 +256,8 @@ class Mirror:
             dst.parent.mkdir(parents=True, exist_ok=True)
             if Path(p).suffix.lower() in TEXT_EXT:
                 text = self.rewrite(body.decode("utf-8", errors="replace"), p)
+                if p == local_path(self.origin, self.origin, "text/html"):
+                    text = self.original_path(text, p)
                 if p.endswith(".html"):
                     # Subresource Integrity: a rewritten file no longer matches its hash and the browser blocks it
                     text = re.sub(r"""\s+integrity=(?:"[^"]*"|'[^']*')""", "", text, flags=re.I)

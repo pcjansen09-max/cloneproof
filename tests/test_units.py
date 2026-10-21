@@ -209,3 +209,16 @@ def test_mjs_keeps_its_name():
     assert local_path("https://x.test/sites/a/react.mjs", "https://x.test/", "text/javascript") == "sites/a/react.mjs"
     assert local_path("https://x.test/a/lib.cjs", "https://x.test/", "application/javascript") == "a/lib.cjs"
     assert local_path("https://x.test/app", "https://x.test/", "application/javascript") == "app.js"
+
+
+def test_start_page_on_a_path_gets_its_original_path_back(tmp_path):
+    m = Mirror("https://x.test/nl", tmp_path)
+    m.add("https://x.test/nl", "text/html", b"<html><head><title>x</title></head><body>hi</body></html>")
+    m.write()
+    out = next(tmp_path.rglob("*.html")).read_text()
+    assert "history.replaceState" in out and '"/nl"' in out and "<base href=" in out, out
+    root = tmp_path / "r"
+    m2 = Mirror("https://x.test/", root)
+    m2.add("https://x.test/", "text/html", b"<html><head></head><body>hi</body></html>")
+    m2.write()
+    assert "replaceState" not in (root / "index.html").read_text()
