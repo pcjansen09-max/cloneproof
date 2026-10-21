@@ -87,18 +87,18 @@ def verdict(score: float) -> str:
 
 async def _one_viewport(browser, vp: str, ref_url: str, clone_url: str, out: Path, *,
                         wait_ms: int, settle_ms: int, noise: bool, max_frames: int,
-                        say: Callable[[str], None], headers: dict | None) -> ViewportResult:
+                        say: Callable[[str], None], headers: dict | None, user_agent: str | None = None) -> ViewportResult:
     say(f"[{vp}] loading reference")
     ref = await probe_page(browser, ref_url, vp, wait_ms=wait_ms, settle_ms=settle_ms,
-                           max_frames=max_frames, headers=headers)
+                           max_frames=max_frames, headers=headers, user_agent=user_agent)
     say(f"[{vp}] loading clone")
     clone = await probe_page(browser, clone_url, vp, wait_ms=wait_ms, settle_ms=settle_ms,
-                             positions=ref.positions, headers=headers)
+                             positions=ref.positions, headers=headers, user_agent=user_agent)
     ref2 = None
     if noise:
         say(f"[{vp}] measuring the reference's own noise")
         ref2 = await probe_page(browser, ref_url, vp, wait_ms=wait_ms, settle_ms=settle_ms,
-                                positions=ref.positions, headers=headers)
+                                positions=ref.positions, headers=headers, user_agent=user_agent)
 
     vdir = out / vp
     vdir.mkdir(parents=True, exist_ok=True)
@@ -169,7 +169,8 @@ async def _one_viewport(browser, vp: str, ref_url: str, clone_url: str, out: Pat
 async def compare_async(reference: str, clone: str, out_dir: Path, *, viewports=("desktop", "tablet", "mobile"),
                         wait_ms: int = 2500, settle_ms: int = 900, noise: bool = True, max_frames: int = 24,
                         say: Callable[[str], None] = lambda s: None, headers: dict | None = None,
-                        headed: bool = False, channel: str | None = None, parallel: bool = True) -> Result:
+                        headed: bool = False, channel: str | None = None, parallel: bool = True,
+                        user_agent: str | None = None) -> Result:
     from playwright.async_api import async_playwright
 
     t0 = time.time()
@@ -184,7 +185,7 @@ async def compare_async(reference: str, clone: str, out_dir: Path, *, viewports=
         async def run(vp: str) -> ViewportResult:
             return await _one_viewport(
                 browser, vp, reference, clone, out_dir, wait_ms=wait_ms, settle_ms=settle_ms,
-                noise=noise, max_frames=max_frames, say=say, headers=headers)
+                noise=noise, max_frames=max_frames, say=say, headers=headers, user_agent=user_agent)
         try:
             if parallel and len(viewports) > 1:
                 done = await asyncio.gather(*(run(vp) for vp in viewports))

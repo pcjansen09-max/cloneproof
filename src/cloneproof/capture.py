@@ -443,7 +443,7 @@ async def verify_mirror(folder: Path, start: str, live_text: int) -> dict[str, A
     return {"ok": ok, "mirror_text_chars": text, "live_text_chars": live_text, "page_errors": errors[:3]}
 
 
-def capture(url: str, folder: str | Path, timeout_s: int = 420, attempts: int = 2, **kw) -> dict[str, Any]:
+def capture(url: str, folder: str | Path, timeout_s: int = 420, attempts: int = 2, **kw) -> dict[str, Any]:  # kw: wait_ms, say, heal_rounds, user_agent
     """Mirror `url`. After writing, open the mirror and check it shows the page; if it does not
     (a transient error page was saved, a blocked request, ...), try again once."""
     async def go():
