@@ -78,7 +78,9 @@ def local_path(url: str, origin: str, content_type: str = "") -> str:
 
 
 def relative(src: str, dst: str) -> str:
-    return "../" * src.count("/") + dst
+    depth = src.count("/")
+    # Always start with ./ or ../ : "assets/x.js" is a bare module name in an import map and gets blocked.
+    return "../" * depth + dst if depth else "./" + dst
 
 
 class Mirror:

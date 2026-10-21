@@ -17,7 +17,7 @@ def test_relative_and_entity_urls_are_rewritten():
     html = ('<link href="news.css?v=3"><link href="/w/load.php?lang=en&amp;skin=x">'
             "<img src='/a/b.png'>")
     out = m.rewrite(html, "index.html")
-    assert "news.css?v=3" not in out and "load.php?" not in out and "/a/b.png" not in out
+    assert "news.css?v=3" not in out and "load.php?" not in out and "'/a/b.png'" not in out
     assert "a/b.png" in out
 
 
@@ -194,3 +194,11 @@ def test_server_swaps_the_placeholder_host_for_the_real_one(tmp_path):
     finally:
         srv.shutdown()
     assert body == f'var u="http://127.0.0.1:{port}/img/a.png";', body
+
+
+def test_import_map_paths_start_with_dot_slash():
+    m = Mirror("https://x.test/", "/tmp/unused")
+    html = '<script type="importmap">{"imports":{"react":"https://x.test/assets/react.js"}}</script>'
+    m.add("https://x.test/", "text/html", html.encode())
+    m.add("https://x.test/assets/react.js", "javascript", b"1")
+    assert '"react":"./assets/react.js"' in m.rewrite(html, "index.html")
