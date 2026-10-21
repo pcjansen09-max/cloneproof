@@ -138,6 +138,13 @@ The same seven pages saved by cloneproof, SingleFile, HTTrack and wget, then jud
 (median of the pages that finished: 99.8, 97.7, 55.4, 97.7). The judge is also a contestant, so read the caveats and rerun it
 yourself: [docs/showdown.md](docs/showdown.md).
 
+## Hard sites
+
+Modern sites build their own URLs, check their own files and sometimes refuse a headless browser. [docs/hard-sites.md](docs/hard-sites.md) lists
+what breaks (bot walls, Next.js streaming data, import maps, `new URL()`, integrity hashes, ...), what cloneproof does about it, and a stress test
+on 34 hard sites (median 75.8 on a quick desktop run; 15 of 33 score 80 or more; the failures are named). For a bot wall a human has to pass,
+attach your own Chrome: `cloneproof capture URL --cdp http://127.0.0.1:9222`.
+
 ## How the score works
 
 See [docs/how-it-works.md](docs/how-it-works.md). In short: visual 50, layout 20, style 12,
