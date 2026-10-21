@@ -202,3 +202,10 @@ def test_import_map_paths_start_with_dot_slash():
     m.add("https://x.test/", "text/html", html.encode())
     m.add("https://x.test/assets/react.js", "javascript", b"1")
     assert '"react":"./assets/react.js"' in m.rewrite(html, "index.html")
+
+
+def test_mjs_keeps_its_name():
+    """framer.com: react.mjs became react.mjs.js, but the site asks for react.mjs, so every module 404ed."""
+    assert local_path("https://x.test/sites/a/react.mjs", "https://x.test/", "text/javascript") == "sites/a/react.mjs"
+    assert local_path("https://x.test/a/lib.cjs", "https://x.test/", "application/javascript") == "a/lib.cjs"
+    assert local_path("https://x.test/app", "https://x.test/", "application/javascript") == "app.js"

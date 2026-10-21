@@ -63,8 +63,9 @@ def local_path(url: str, origin: str, content_type: str = "") -> str:
         path += "index" + (want or ".html")
     elif not Path(path).suffix:
         path += want or "/index.html"
-    elif want and Path(path).suffix.lower() != want and want in (".css", ".js", ".json", ".svg"):
-        path += want
+    elif want and Path(path).suffix.lower() != want and want in (".css", ".js", ".json", ".svg") and not (
+            want == ".js" and Path(path).suffix.lower() in (".mjs", ".cjs")):
+        path += want                # (.mjs/.cjs already are JavaScript: the site asks for exactly that name later)
     parts = [seg for seg in path.split("/") if seg not in ("", ".", "..")]   # never leave the mirror folder
     parts = [re.sub(r'[<>:"|?*\\\x00-\x1f]', "_", seg) for seg in parts]
     path = "/".join(parts)
