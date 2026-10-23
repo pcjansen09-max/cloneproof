@@ -95,3 +95,20 @@ def test_fix_prompt_mentions_the_fix(servers, tmp_path):
     r = run(port, d, tmp_path / "o6")
     p = build_prompt(r)
     assert "font-size: 64px" in p and "cloneproof compare" in p
+
+
+def test_wrong_hover_colour_is_found_and_does_not_move_the_score(servers, tmp_path):
+    """The resting page is identical in both; only :hover differs (issue #1)."""
+    _, port = servers
+    d = variant(tmp_path, "hov", ("header a:hover{color:#9333ea}", "header a:hover{color:#16a34a}"))
+    r = run(port, d, tmp_path / "o7")
+    hits = [i for i in r.issues() if i.kind == "interaction"]
+    assert any(i.detail.get("property") == "text color" and i.detail.get("original") for i in hits)
+    assert r.score >= 99.0, r.to_dict()["issues"][:5]   # informational only: it must not cost score
+
+
+def test_missing_hover_entirely_is_found(servers, tmp_path):
+    _, port = servers
+    d = variant(tmp_path, "nohov", ("header a:hover{color:#9333ea}", ""))
+    r = run(port, d, tmp_path / "o8")
+    assert any(i.kind == "interaction" for i in r.issues())

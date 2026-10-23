@@ -42,6 +42,51 @@ def _page(shift=0, colour=(20, 20, 20)):
     return img
 
 
+def _btn(text, rest=None, hover=None, focus=None, path=None):
+    return {"tag": "a", "path": path or f"nav > a.{text.lower()}", "text": text,
+            "rest": rest or {"color": "rgb(255, 255, 255)"},
+            "hover": hover or {}, "focus": focus or {}}
+
+
+def test_wrong_hover_colour_is_an_issue():
+    ref = [_btn("Work", hover={"color": "rgb(147, 51, 234)"})]
+    clone = [_btn("Work", hover={"color": "rgb(22, 163, 74)"})]
+    issues = M.compare_interactions("desktop", ref, clone)
+    assert len(issues) == 1
+    assert issues[0].kind == "interaction" and issues[0].detail["property"] == "text color"
+
+
+def test_clone_missing_the_hover_rule_entirely_is_an_issue():
+    ref = [_btn("Work", rest={"color": "rgb(255, 255, 255)"}, hover={"color": "rgb(147, 51, 234)"})]
+    clone = [_btn("Work", rest={"color": "rgb(255, 255, 255)"})]  # no hover key: stays at rest colour
+    issues = M.compare_interactions("desktop", ref, clone)
+    assert len(issues) == 1 and issues[0].detail["clone"] == "rgb(255, 255, 255)"
+
+
+def test_matching_hover_is_not_an_issue():
+    ref = [_btn("Work", hover={"color": "rgb(147, 51, 234)"})]
+    clone = [_btn("Work", hover={"color": "rgb(148, 52, 235)"})]  # 1 off per channel: within tolerance
+    assert M.compare_interactions("desktop", ref, clone) == []
+
+
+def test_original_without_a_hover_effect_is_not_checked():
+    """The original leaving a button static is not something to ask the clone to change."""
+    ref = [_btn("Work")]
+    clone = [_btn("Work", hover={"color": "rgb(147, 51, 234)"})]
+    assert M.compare_interactions("desktop", ref, clone) == []
+
+
+def test_unmatched_elements_are_skipped_not_reported_missing():
+    ref = [_btn("Work", hover={"color": "rgb(147, 51, 234)"})]
+    clone = [_btn("About", hover={"color": "rgb(147, 51, 234)"})]
+    assert M.compare_interactions("desktop", ref, clone) == []
+
+
+def test_interaction_is_not_a_scored_category():
+    from cloneproof.compare import WEIGHTS
+    assert "interaction" not in WEIGHTS
+
+
 def test_identical_frames_match():
     raw, content, diff = M.frame_similarity(_page(), _page(), None)
     assert content > 0.999 and not diff.any()

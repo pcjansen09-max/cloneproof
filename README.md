@@ -161,13 +161,16 @@ reminder; the responsibility is yours.
 
 ## Limits
 
-WebGL/canvas is compared as pixels only. Hover/click states and forms are not compared. Pages behind a
-login need `--header "Cookie: ..."`. Some bot walls block headless browsers; try `--headed` or `--chrome`.
+WebGL/canvas is compared as pixels only. Hover and focus are checked on up to 16 visible links/buttons
+above the fold (informational, not scored, see [docs/how-it-works.md](docs/how-it-works.md)); click states
+and form validation are not compared yet. Pages behind a login need `--header "Cookie: ..."`. Some bot walls
+block headless browsers; try `--headed` or `--chrome`.
 
 ## Roadmap
 
 - [x] website vs website
-- [ ] hover / click / form states
+- [x] hover / focus states (desktop & mobile, informational)
+- [ ] click states and form validation
 - [ ] side-by-side scroll video export
 - [ ] mobile apps and desktop software (screenshots + accessibility tree)
 - [ ] built-in clone builder

@@ -129,7 +129,8 @@ async def _one_viewport(browser, vp: str, ref_url: str, clone_url: str, out: Pat
     asset_score, asset_issues = M.compare_assets(vp, ref, clone)
     motion_score, motion_issues = M.compare_motion(vp, ref.frames, clone.frames)
 
-    issues: list[M.Issue] = el_issues + asset_issues + motion_issues
+    interaction_issues = M.compare_interactions(vp, ref.interactions, clone.interactions)
+    issues: list[M.Issue] = el_issues + asset_issues + motion_issues + interaction_issues
     # visual regions: tie the worst blobs to the element under them
     for f in frames_info:
         for reg in f["regions"][:2]:

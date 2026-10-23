@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -25,6 +26,9 @@ from .browser import new_page, normal_user_agent
 
 VIEWPORTS = {"mobile": (390, 844), "tablet": (768, 1024), "desktop": (1440, 900)}
 MAX_FRAMES = 24
+INTERACTIVE_SELECTOR = "a[href], button, input[type=submit], input[type=button], [role=button]"
+MAX_INTERACTIONS = 16
+INTERACT_STATE_KEYS = ("color", "background", "boxShadow", "borderColor", "textDecorationLine", "opacity", "transform")
 
 # Runs in the page. Returns a list of element records in document order.
 SNAPSHOT_JS = r"""
@@ -131,6 +135,90 @@ UNFREEZE_MEDIA_JS = """
 }
 """
 
+_PATH_OF_JS = """
+el => {
+  const parts = [];
+  let n = el;
+  while (n && n.nodeType === 1 && parts.length < 4) {
+    let p = n.tagName.toLowerCase();
+    if (n.id) { p += '#' + n.id; parts.unshift(p); break; }
+    const cls = (typeof n.className === 'string' ? n.className : '').trim().split(/\\s+/).filter(Boolean).slice(0, 2);
+    if (cls.length) p += '.' + cls.join('.');
+    parts.unshift(p);
+    n = n.parentElement;
+  }
+  return parts.join(' > ');
+}
+"""
+
+_STATE_STYLE_JS = """
+el => {
+  const cs = getComputedStyle(el);
+  return {color: cs.color, background: cs.backgroundColor,
+          boxShadow: cs.boxShadow === 'none' ? '' : cs.boxShadow,
+          borderColor: cs.borderColor, textDecorationLine: cs.textDecorationLine,
+          opacity: cs.opacity, transform: cs.transform === 'none' ? '' : cs.transform};
+}
+"""
+
+
+async def capture_interactions(page, *, height: int, limit: int = MAX_INTERACTIONS,
+                               timeout_s: float = 10.0) -> list[dict[str, Any]]:
+    """Hover and focus the page's visible interactive elements and record what changes.
+
+    cloneproof otherwise only ever looks at the resting page, so a button whose hover colour
+    is wrong never shows up. Call this at scroll position 0, right after the top-of-page
+    snapshot. Capped to `limit` elements (first in document order, above the fold) and
+    `timeout_s` total, so one odd page cannot stall a whole run; any element that fails to
+    hover (covered, detached, animating away) is skipped rather than aborting the probe.
+    """
+    out: list[dict[str, Any]] = []
+    try:
+        locator = page.locator(INTERACTIVE_SELECTOR)
+        count = min(await locator.count(), limit * 4)
+    except Exception:
+        return out
+    started = time.monotonic()
+    seen_paths: set[str] = set()
+    for i in range(count):
+        if len(out) >= limit or time.monotonic() - started > timeout_s:
+            break
+        el = locator.nth(i)
+        try:
+            box = await el.bounding_box()
+            if not box or box["width"] < 1 or box["height"] < 1 or box["y"] >= height or box["y"] + box["height"] <= 0:
+                continue  # only what a visitor sees without scrolling first
+            path = await el.evaluate(_PATH_OF_JS)
+            if path in seen_paths:
+                continue
+            seen_paths.add(path)
+            text = (await el.inner_text() or "").strip()[:60]
+            tag = await el.evaluate("e => e.tagName.toLowerCase()")
+            rest = await el.evaluate(_STATE_STYLE_JS)
+            await el.hover(timeout=2000, force=True)
+            await page.wait_for_timeout(180)          # let CSS transitions finish
+            hover = await el.evaluate(_STATE_STYLE_JS)
+            focus: dict[str, str] = {}
+            try:
+                await el.focus(timeout=1000)
+                await page.wait_for_timeout(120)
+                focus = await el.evaluate(_STATE_STYLE_JS)
+            except Exception:
+                pass
+            out.append({
+                "path": path, "tag": tag, "text": text, "rest": rest,
+                "hover": {k: v for k, v in hover.items() if v != rest.get(k)},
+                "focus": {k: v for k, v in focus.items() if v != rest.get(k)},
+            })
+        except Exception:
+            continue
+    try:
+        await page.mouse.move(0, 0)
+        await page.evaluate("document.activeElement && document.activeElement.blur && document.activeElement.blur()")
+    except Exception:
+        pass
+    return out
+
 
 @dataclass
 class Probe:
@@ -142,6 +230,7 @@ class Probe:
     positions: list[int] = field(default_factory=list)
     frames: list[Image.Image] = field(default_factory=list)
     elements: list[dict[str, Any]] = field(default_factory=list)
+    interactions: list[dict[str, Any]] = field(default_factory=list)
     console_errors: list[str] = field(default_factory=list)
     failed_requests: list[str] = field(default_factory=list)
     fonts: list[str] = field(default_factory=list)
@@ -208,6 +297,11 @@ async def _probe_page(browser, url: str, viewport: str, *, wait_ms: int = 2500,
         await page.evaluate("window.scrollTo(0, 0)")
         await page.wait_for_timeout(settle_ms)
         result.elements = await page.evaluate(SNAPSHOT_JS)
+        try:
+            result.interactions = await capture_interactions(page, height=height)
+        except Exception:
+            pass  # hover/focus states are a bonus signal, never worth failing the probe over
+        await page.evaluate("window.scrollTo(0, 0)")
         for y in result.positions:
             await page.evaluate("y => window.scrollTo(0, y)", y)
             await page.wait_for_timeout(settle_ms)

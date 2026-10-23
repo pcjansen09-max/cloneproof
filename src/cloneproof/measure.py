@@ -487,6 +487,54 @@ def css_name(k: str) -> str:
 
 # -- assets / behaviour ----------------------------------------------------------------------
 
+INTERACT_LABELS = {"color": "text color", "background": "background", "boxShadow": "box-shadow",
+                   "borderColor": "border color", "textDecorationLine": "underline",
+                   "opacity": "opacity", "transform": "transform"}
+
+
+def _interaction_key(e: dict[str, Any]) -> str:
+    return f"{e['tag']}|{e['text'].lower()}" if e["text"] else f"{e['tag']}|{e['path']}"
+
+
+def compare_interactions(vp: str, ref: list[dict[str, Any]], clone: list[dict[str, Any]]) -> list[Issue]:
+    """Hover/focus states the resting-page compare never sees (see probe.capture_interactions).
+
+    Informational only, does not move the score: most sites leave plenty of elements with no
+    hover/focus style at all, and scoring this would punish an honest clone for the original's
+    own inconsistency rather than for anything the clone got wrong.
+    """
+    issues: list[Issue] = []
+    by_key: dict[str, dict[str, Any]] = {}
+    for c in clone:
+        by_key.setdefault(_interaction_key(c), c)
+    for r in ref:
+        c = by_key.get(_interaction_key(r))
+        if c is None:
+            continue
+        for state in ("hover", "focus"):
+            rs = r.get(state) or {}
+            if not rs:
+                continue  # original does not change on this state here: nothing to ask the clone to do
+            cs, rest = c.get(state) or {}, r.get("rest") or {}
+            for k, rv in rs.items():
+                cv = cs.get(k, rest.get(k, ""))
+                if k in ("color", "background", "borderColor"):
+                    same = _color_dist(rv, cv) <= 6
+                elif k == "opacity":
+                    same = abs(float(rv or 1) - float(cv or 1)) < 0.03
+                else:
+                    same = rv == cv
+                if same:
+                    continue
+                label = INTERACT_LABELS.get(k, k)
+                where = r["path"] or r["text"] or r["tag"]
+                issues.append(Issue(
+                    "interaction", 0.18, vp,
+                    f'`{where}` on :{state} {label}: original {rv or "(none)"}, clone {cv or "(none)"}',
+                    r["path"], {"state": state, "property": label, "original": rv, "clone": cv}))
+    return issues
+
+
 def compare_assets(vp: str, ref: Probe, clone: Probe) -> tuple[float, list[Issue]]:
     issues: list[Issue] = []
     gone: list[str] = []

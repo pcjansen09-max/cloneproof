@@ -7,7 +7,7 @@ from pathlib import Path
 from .compare import Result, verdict
 from . import measure as M
 
-KIND_ORDER = ["missing", "height", "position", "size", "style", "font", "text", "visual", "motion", "asset", "console", "extra"]
+KIND_ORDER = ["missing", "height", "position", "size", "style", "interaction", "font", "text", "visual", "motion", "asset", "console", "extra"]
 
 
 def _group(issues: list[M.Issue]) -> dict[str, list[M.Issue]]:

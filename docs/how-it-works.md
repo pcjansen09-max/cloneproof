@@ -46,10 +46,17 @@ This finds, with a CSS selector and numbers:
   animates in the original and sits still in the clone shows up as a motion issue at that scroll step.
 - **Assets**: fonts that load in the original but not in the clone, failed requests, console errors that only
   the clone has.
+- **Interaction**: before scrolling, up to 16 visible links/buttons above the fold are hovered and focused
+  in both pages, and their colour/background/shadow/border/underline/opacity/transform are compared against
+  the resting state. An original that never changes on hover is not checked (nothing to ask the clone for);
+  clicks and form states are not covered yet. This is **informational only**: it shows up in the issue list
+  and the prompt but is not part of the score below, because most real sites leave some elements with no
+  hover state at all, and scoring that would punish an honest clone for the original's own inconsistency.
 
 ## The score
 
-Per viewport: visual 50%, layout 20%, style 12%, content 8%, assets 5%, motion 5%.
+Per viewport: visual 50%, layout 20%, style 12%, content 8%, assets 5%, motion 5%. Interaction issues are
+reported but, as above, not counted here.
 Across viewports: desktop 45%, mobile 35%, tablet 20%.
 
 | score | meaning |
