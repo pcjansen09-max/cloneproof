@@ -145,6 +145,10 @@ class Mirror:
                 done.append(p)
         return done
 
+    # A url() in a CSS custom property (--color:url(./x.webp)) resolves against the stylesheet that USES the variable, not the
+    # page, so in HTML it must be a root path (serve.py serves every mirror at its own root).
+    CSS_VAR = re.compile(r"""(--[\w-]+\s*:\s*url\(["']?)((?:\.{1,2}/)+)([^)"'\s]+)""")
+
     TOKEN = re.compile(r"""(?P<q>["'(=\s,])(?P<u>[A-Za-z0-9_\-./:%@~+#?=&;!$*\[\],]{2,600})(?=["')\s>]|$)""")
 
     def rewrite_relative(self, text: str, src: str) -> str:
@@ -171,7 +175,11 @@ class Mirror:
                     tok.startswith("//") and not re.match(r"//[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+(/|$)", tok))
                 if is_code and tok.startswith(("http://", "https://", "//")):
                     looks_like_url = False        # full addresses in code are handled below, as absolute addresses
-                if looks_like_url and not tok.startswith(("#", "data:", "javascript:", "mailto:", "tel:")) and ("/" in tok or "." in tok):
+                # In code a bare file name ("tile.webp") is almost always glued behind a base path (webpack i.p + "tile.webp");
+                # turning it into a path relative to the JS file gives base + "../../..".
+                bare_in_code = is_code and "/" not in tok
+                if (looks_like_url and not bare_in_code and not tok.startswith(("#", "data:", "javascript:", "mailto:", "tel:"))
+                        and ("/" in tok or "." in tok)):
                     try:
                         full = urljoin(base, tok.replace("&amp;", "&")).split("#")[0]
                     except ValueError:
@@ -217,6 +225,8 @@ class Mirror:
         if src.endswith(".html") and "__next_f" in text:
             text = self.FLIGHT.sub(stash, text)
         text = self._rewrite(text, src)
+        if src.lower().endswith((".html", ".htm")):
+            text = self.CSS_VAR.sub(lambda m: m.group(1) + "/" + m.group(3), text)
         for i, block in enumerate(keep):
             text = text.replace(f"\x00CPKEEP{i}\x00", block)
         return text
@@ -316,6 +326,53 @@ HARVEST_JS = r"""
 """
 
 
+CONSENT_JS = r"""
+() => {
+  const label = /^(alles |alle cookies |alle )?(accepteren|accepteer( alles| alle cookies)?|akkoord|ik ga akkoord|alle cookies accepteren|toestaan|alles toestaan|accept( all)?( cookies)?|allow all|agree|i agree|ok(e|ay)?)$/i;
+  const around = /cookie|privacy|toestemming|consent|gdpr|avg/i;
+  const find = (root, out) => {
+    root.querySelectorAll('*').forEach(e => { if (e.shadowRoot) find(e.shadowRoot, out); });
+    root.querySelectorAll('button, a, [role=button], input[type=submit], input[type=button]').forEach(e => out.push(e));
+    return out;
+  };
+  const parent = e => e.parentElement || (e.getRootNode() && e.getRootNode().host) || null;
+  for (const el of find(document, [])) {
+    const t = (el.innerText || el.value || el.getAttribute('aria-label') || '').trim();
+    if (!t || t.length > 40 || !label.test(t)) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 10 || r.height < 10 || getComputedStyle(el).visibility === 'hidden') continue;
+    let block = el, ok = /consent|privacy|cookie/i.test(location.href);
+    for (let i = 0; i < 9 && parent(block) && !ok; i++) { block = parent(block); ok = around.test((block.innerText || '').slice(0, 1500)); }
+    if (!ok) continue;
+    el.setAttribute('data-cloneproof-consent', '1');
+    return t;
+  }
+  return '';
+}
+"""
+
+
+async def click_consent(page) -> bool:
+    """Click a cookie/privacy wall away (at most two in a row). Only a short button with exactly such a label, inside a block
+    that talks about cookies or privacy, is ever clicked. nu.nl and many Dutch news sites redirect to such a wall and the
+    'copy' was that wall."""
+    clicked = False
+    for _ in range(2):
+        try:
+            if not await page.evaluate(CONSENT_JS):
+                break
+            await page.click("[data-cloneproof-consent='1']", timeout=5000)
+            clicked = True
+            try:
+                await page.wait_for_load_state("load", timeout=20000)
+            except Exception:
+                pass
+            await page.wait_for_timeout(1500)
+        except Exception:
+            break
+    return clicked
+
+
 async def capture_async(url: str, folder: Path, wait_ms: int = 6000, say=lambda s: None,
                         heal_rounds: int = 3, user_agent: str | None = None, cdp: str | None = None) -> dict[str, Any]:
     from playwright.async_api import async_playwright
@@ -343,7 +400,10 @@ async def capture_async(url: str, folder: Path, wait_ms: int = 6000, say=lambda 
             await page.wait_for_load_state("networkidle", timeout=30000)
         except Exception:
             pass
-        await page.wait_for_timeout(wait_ms)
+        await page.wait_for_timeout(min(wait_ms, 3000))
+        if await click_consent(page):
+            say("clicked away a cookie/consent wall")
+            await page.wait_for_timeout(wait_ms)
         say("scrolling through the page")
         await asyncio.wait_for(page.evaluate("""async () => {
             const step = window.innerHeight * 0.7;
