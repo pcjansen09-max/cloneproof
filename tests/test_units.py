@@ -267,3 +267,25 @@ def test_start_page_on_a_path_gets_its_original_path_back(tmp_path):
     m2.add("https://x.test/", "text/html", b"<html><head></head><body>hi</body></html>")
     m2.write()
     assert "replaceState" not in (root / "index.html").read_text()
+
+
+def test_address_with_commas_in_the_query_is_not_cut_short():
+    """Image CDNs put commas in the query (rect=0,350,2200,600); a shorter sibling address (rect=486) must not eat its head."""
+    m = Mirror("https://x.com/", "/tmp/unused")
+    m.add("https://x.com/", "text/html", b"<html></html>")
+    m.add("https://cdn.test/p.jpg?w=450&rect=486", "image/jpeg", b"short")
+    m.add("https://cdn.test/p.jpg?w=450&rect=486,350,1227,600&fm=jpg", "image/jpeg", b"long")
+    long_path = m.urls["https://cdn.test/p.jpg?w=450&rect=486,350,1227,600&fm=jpg"]
+    html = ('<img src="https://cdn.test/p.jpg?w=450&amp;rect=486,350,1227,600&amp;fm=jpg" '
+            'srcset="https://cdn.test/p.jpg?w=450&amp;rect=486,350,1227,600&amp;fm=jpg 1x, https://cdn.test/p.jpg?w=450&amp;rect=486 2x">')
+    out = m.rewrite(html, "index.html")
+    assert ",350" not in out and ",1227" not in out, out
+    assert out.count(long_path) == 2, out
+
+
+def test_extremely_long_file_names_are_shortened():
+    long = "eyJhbm9ueW1vdXMiOnRydWU" * 30
+    p1 = local_path(f"https://app.test/sdk/contexts/{long}", "https://x.com/")
+    assert p1 == local_path(f"https://app.test/sdk/contexts/{long}", "https://x.com/")
+    assert all(len(seg.encode()) <= 150 for seg in p1.split("/")), p1
+    assert local_path("https://x.com/" + "a" * 400 + ".js", "https://x.com/").endswith(".js")

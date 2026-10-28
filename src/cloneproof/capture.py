@@ -36,7 +36,7 @@ KEEP = ("text/html", "text/css", "javascript", "font", "image", "video", "audio"
 MAX_BYTES = 80 * 1024 * 1024
 TEXT_EXT = (".html", ".css", ".js", ".mjs", ".json", ".svg", ".xml", ".webmanifest")
 MEDIA_EXT = (".mp4", ".webm", ".mov", ".m4v", ".ogg", ".mp3", ".wav", ".glb", ".gltf", ".mp4")
-BOUNDARY = r'(?=["\'`)\s>,;\\]|$)'
+BOUNDARY = r'(?=["\'`)\s>;\\]|,(?=\s|$)|$)'
 # In code (JS, JSON) a rewritten address stays ABSOLUTE, on this placeholder host. The server swaps it for the real one when it
 # serves the file (serve.py). A relative path would break new URL(address), and many sites call that with a full address.
 MIRROR = "http://cloneproof.mirror"
@@ -54,6 +54,17 @@ def _short(s: str) -> str:
     return hashlib.sha1(s.encode()).hexdigest()[:6]
 
 
+def _cap(seg: str, limit: int = 150) -> str:
+    """A file name may be 255 bytes on disk (and we append a hash). ryanair.com had a 600-character base64 segment."""
+    if len(seg.encode()) <= limit:
+        return seg
+    stem, dot, ext = seg.rpartition(".")
+    ext = ext if dot and len(ext) <= 8 else ""
+    tag = hashlib.sha1(seg.encode()).hexdigest()[:10]
+    head = seg.encode()[:limit - len(tag) - len(ext) - 3].decode("utf-8", "ignore")
+    return f"{head}-{tag}" + (f".{ext}" if ext else "")
+
+
 def local_path(url: str, origin: str, content_type: str = "") -> str:
     """Where a resource lives inside the mirror."""
     u = urlparse(url)
@@ -67,7 +78,7 @@ def local_path(url: str, origin: str, content_type: str = "") -> str:
             want == ".js" and Path(path).suffix.lower() in (".mjs", ".cjs")):
         path += want                # (.mjs/.cjs already are JavaScript: the site asks for exactly that name later)
     parts = [seg for seg in path.split("/") if seg not in ("", ".", "..")]   # never leave the mirror folder
-    parts = [re.sub(r'[<>:"|?*\\\x00-\x1f]', "_", seg) for seg in parts]
+    parts = [_cap(re.sub(r'[<>:"|?*\\\x00-\x1f]', "_", seg)) for seg in parts]
     path = "/".join(parts)
     if u.query:                      # fonts.googleapis.com/css2?family=A and ?family=B differ
         stem, dot, ext = path.rpartition(".")
@@ -134,7 +145,7 @@ class Mirror:
                 done.append(p)
         return done
 
-    TOKEN = re.compile(r"""(?P<q>["'(=\s,])(?P<u>[A-Za-z0-9_\-./:%@~+#?=&;!$*\[\]]{2,600})(?=["')\s,>]|$)""")
+    TOKEN = re.compile(r"""(?P<q>["'(=\s,])(?P<u>[A-Za-z0-9_\-./:%@~+#?=&;!$*\[\],]{2,600})(?=["')\s>]|$)""")
 
     def rewrite_relative(self, text: str, src: str) -> str:
         """Resolve relative and root-relative references against the file's own URL.
@@ -174,7 +185,23 @@ class Mirror:
                         hit = relative(src, mapped)
                 cache[tok] = hit
             return m.group("q") + hit if hit else m.group(0)
-        return self.TOKEN.sub(sub, text)
+        def with_commas(m: re.Match) -> str:
+            """An address may contain commas (rect=0,350,2200,600): try it whole first; if that fails it is a list with
+            no spaces ("a.jpg,b.jpg") and each piece is resolved on its own."""
+            tok = m.group("u")
+            if "," not in tok:
+                return sub(m)
+            whole = sub(m)
+            if whole != m.group(0):
+                return whole
+            pieces = tok.split(",")
+            fixed = []
+            for piece in pieces:
+                one = self.TOKEN.fullmatch('"' + piece) if len(piece) >= 2 else None
+                res = sub(one) if one else None
+                fixed.append(res[1:] if res and res.startswith('"') else piece)
+            return m.group("q") + ",".join(fixed) if fixed != pieces else m.group(0)
+        return self.TOKEN.sub(with_commas, text)
 
     FLIGHT = re.compile(r"<script[^>]*>(?:(?!</script>).)*?__next_f(?:(?!</script>).)*</script>", re.S)
 
@@ -275,7 +302,7 @@ HARVEST_JS = r"""
 () => {
   const out = new Set();
   const add = u => { if (!u) return; try { out.add(new URL(u, document.baseURI).href.split('#')[0]); } catch (e) {} };
-  const srcset = v => (v || '').split(',').forEach(p => add(p.trim().split(/\s+/)[0]));
+  const srcset = v => { v = v || ''; let i = 0; while (i < v.length) { while (i < v.length && /[\s,]/.test(v[i])) i++; let j = i; while (j < v.length && !/\s/.test(v[j])) j++; let u = v.slice(i, j); i = j; if (u.endsWith(',')) { add(u.replace(/,+$/, '')); continue; } add(u); while (i < v.length && v[i] !== ',') i++; } };
   document.querySelectorAll('img').forEach(i => { add(i.currentSrc); add(i.src); srcset(i.srcset); });
   document.querySelectorAll('source').forEach(i => { srcset(i.srcset); add(i.src); });
   document.querySelectorAll('video').forEach(v => { add(v.currentSrc); add(v.src); add(v.poster); });
